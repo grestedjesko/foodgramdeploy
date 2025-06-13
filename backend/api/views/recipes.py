@@ -5,6 +5,7 @@ from api.serializers.recipes import (IngredientSerializer,
                                      RecipeListSerializer,
                                      RecipeCreateSerializer)
 from recipes.models import Recipe
+from api.views.shopping_cart import ShoppingCartMixin
 
 
 class IngredientViewSet(viewsets.ReadOnlyModelViewSet):
@@ -14,7 +15,7 @@ class IngredientViewSet(viewsets.ReadOnlyModelViewSet):
     search_fields = ['^name']  # Поиск по началу названия
 
 
-class RecipeViewSet(viewsets.ModelViewSet):
+class RecipeViewSet(viewsets.ModelViewSet, ShoppingCartMixin):
     queryset = Recipe.objects.all()
     permission_classes = [IsAuthenticatedOrReadOnly]
 

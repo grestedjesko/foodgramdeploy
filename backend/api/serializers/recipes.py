@@ -66,3 +66,8 @@ class RecipeCreateSerializer(serializers.ModelSerializer):
         ])
 
         return recipe
+
+class RecipeShortSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Recipe
+        fields = ('id', 'name', 'image', 'cooking_time')
