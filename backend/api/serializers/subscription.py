@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from users.models.subscription import Subscription
-from api.serializers.users import UserSerializer
+from api.serializers.users import CustomUserSerializer
 from api.serializers.recipes import RecipeShortSerializer
 
 
@@ -22,12 +22,12 @@ class SubscriptionCreateSerializer(serializers.ModelSerializer):
         return data
 
 
-class AuthorWithRecipesSerializer(UserSerializer):
-    recipes = serializers.SerializerMethodField()
+class AuthorWithRecipesSerializer(CustomUserSerializer):
+    recipes = RecipeShortSerializer(many=True, read_only=True)
     recipes_count = serializers.SerializerMethodField()
 
-    class Meta(UserSerializer.Meta):
-        fields = UserSerializer.Meta.fields + ('recipes', 'recipes_count')
+    class Meta(CustomUserSerializer.Meta):
+        fields = CustomUserSerializer.Meta.fields + ('recipes', 'recipes_count')
 
     def get_recipes(self, obj):
         request = self.context.get('request')
