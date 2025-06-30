@@ -22,9 +22,20 @@ const SignIn = ({ onSignIn, submitError, setSubmitError }) => {
     handleChange(e);
   };
 
+  const handleGithubLogin = () => {
+    const apiRoot =
+      process.env.REACT_APP_API_URL || // CRA
+      import.meta.env?.VITE_API_URL || // Vite
+      "";
+    const url = `${apiRoot}/api/users/github/login/`.replace(/([^:]\/)\/+/g, "$1");
+    window.location.href = url;
+  };
+
+  if (localStorage.getItem("token")) {
+    return <Redirect to="/recipes" />;
+  }
   return (
     <Main withBG asFlex>
-      {authContext && <Redirect to="/recipes" />}
       <Container className={styles.center}>
         <MetaTags>
           <title>Войти на сайт</title>
@@ -69,6 +80,13 @@ const SignIn = ({ onSignIn, submitError, setSubmitError }) => {
           <Button modifier="style_dark" type="submit" className={styles.button}>
             Войти
           </Button>
+          <button
+            type="button"
+            onClick={handleGithubLogin}
+            className={`${styles.githubBtn ?? ""} ${styles.button}`} // используем стили, как для обычной кнопки
+          >
+            Войти через&nbsp;GitHub
+          </button>
         </Form>
       </Container>
     </Main>

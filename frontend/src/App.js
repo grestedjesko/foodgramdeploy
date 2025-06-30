@@ -22,6 +22,7 @@ import {
   NotFound,
   UpdateAvatar,
   ResetPassword,
+  OAuthGithub
   // Technologies,
 } from "./pages";
 
@@ -300,6 +301,10 @@ function App() {
 
             <Route exact path="/reset-password">
               <ResetPassword onPasswordReset={onPasswordReset} />
+            </Route>
+
+            <Route exact path="/oauth/github">
+               <OAuthGithub />
             </Route>
 
             <Route exact path="/technologies">

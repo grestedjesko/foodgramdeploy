@@ -172,3 +172,7 @@ DJOSER = {
 
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+GITHUB_CLIENT_ID = os.getenv("GITHUB_CLIENT_ID", "your-client-id")
+GITHUB_CLIENT_SECRET = os.getenv("GITHUB_CLIENT_SECRET", "your-client-secret")
+GITHUB_REDIRECT_URI = os.getenv("GITHUB_REDIRECT_URI", "http://localhost/api/users/github/callback")
