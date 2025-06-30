@@ -27,7 +27,7 @@ const SignIn = ({ onSignIn, submitError, setSubmitError }) => {
       process.env.REACT_APP_API_URL || // CRA
       import.meta.env?.VITE_API_URL || // Vite
       "";
-    const url = `${apiRoot}/api/users/github/login/`.replace(/([^:]\/)\/+/g, "$1");
+    const url = `${apiRoot}/api/auth/github/login/`.replace(/([^:]\/)\/+/g, "$1");
     window.location.href = url;
   };
 
@@ -80,13 +80,22 @@ const SignIn = ({ onSignIn, submitError, setSubmitError }) => {
           <Button modifier="style_dark" type="submit" className={styles.button}>
             Войти
           </Button>
+
           <button
-            type="button"
-            onClick={handleGithubLogin}
-            className={`${styles.githubBtn ?? ""} ${styles.button}`} // используем стили, как для обычной кнопки
+              type="button"
+              onClick={handleGithubLogin}
+              className={styles.githubBtn}
           >
-            Войти через&nbsp;GitHub
+          <img
+            src="https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png"
+            alt="GitHub"
+            width="20"
+            height="20"
+          />
+          Войти через GitHub
           </button>
+
+
         </Form>
       </Container>
     </Main>

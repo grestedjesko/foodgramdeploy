@@ -175,4 +175,12 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 GITHUB_CLIENT_ID = os.getenv("GITHUB_CLIENT_ID", "your-client-id")
 GITHUB_CLIENT_SECRET = os.getenv("GITHUB_CLIENT_SECRET", "your-client-secret")
-GITHUB_REDIRECT_URI = os.getenv("GITHUB_REDIRECT_URI", "http://localhost/api/users/github/callback")
+GITHUB_REDIRECT_URI = os.getenv("GITHUB_REDIRECT_URI", "http://localhost/api/auth/github/callback")
+
+EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+EMAIL_HOST = 'smtp.mail.ru'
+EMAIL_PORT = 465
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = 'extrafadee@gmail.com'
+EMAIL_HOST_PASSWORD = 'vorontsy-2rink-5oraVa'  # см. ниже!
+DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
