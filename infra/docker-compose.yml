@@ -23,16 +23,17 @@ services:
 
   nginx:
     container_name: foodgram-proxy
-    image: nginx:1.25.4-alpine
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
     ports:
       - "80:80"
     depends_on:
       - backend
     volumes:
       - ./nginx.conf:/etc/nginx/conf.d/default.conf
-      - ../frontend/build:/usr/share/nginx/html/
-      - static_data:/backend_static/              # админка
-      - media_data:/media/                        # медиа-файлы
+      - static_data:/backend_static/
+      - media_data:/media/
       - ../docs/:/usr/share/nginx/html/api/docs/
 
 volumes:
