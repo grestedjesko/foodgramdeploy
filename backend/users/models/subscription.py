@@ -1,5 +1,4 @@
 from django.db import models
-from users.models.user import CustomUser
 from django.conf import settings
 
 

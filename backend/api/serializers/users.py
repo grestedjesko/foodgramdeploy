@@ -25,6 +25,7 @@ class CustomUserCreateSerializer(UserCreateSerializer):
             )
         return value
 
+
 class CustomUserSerializer(UserSerializer):
     is_subscribed = serializers.SerializerMethodField()
 

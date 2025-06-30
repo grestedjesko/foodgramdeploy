@@ -30,7 +30,6 @@ class CustomUserViewSet(UserViewSet, SubscriptionMixin):
         serializer.save()
         return Response(serializer.data, status=status.HTTP_200_OK)
 
-
     @set_avatar.mapping.delete
     def delete_avatar(self, request):
         user = request.user

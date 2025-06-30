@@ -40,13 +40,23 @@ class CustomUserAdmin(admin.ModelAdmin):
     search_fields = ('email', 'first_name')
     fieldsets = (
         (None, {'fields': ('email', 'password')}),
-        ('Личная информация', {'fields': ('username', 'first_name', 'last_name', 'avatar')}),
-        ('Права доступа', {'fields': ('is_staff', 'is_active', 'is_superuser', 'groups', 'user_permissions')}),
+        ('Личная информация',
+         {'fields': ('username', 'first_name', 'last_name', 'avatar')}),
+        ('Права доступа',
+         {'fields': ('is_staff', 'is_active', 'is_superuser', 'groups', 'user_permissions')}),
         ('Важные даты', {'fields': ('last_login', 'date_joined')}),
     )
     add_fieldsets = (
         (None, {
             'classes': ('wide',),
-            'fields': ('email', 'username', 'first_name', 'last_name', 'avatar', 'password1', 'password2', 'is_staff', 'is_active')}
-        ),
+            'fields': ('email',
+                       'username',
+                       'first_name',
+                       'last_name',
+                       'avatar',
+                       'password1',
+                       'password2',
+                       'is_staff',
+                       'is_active')}
+         ),
     )

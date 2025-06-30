@@ -13,7 +13,9 @@ from api.serializers.subscription import (
 
 
 class SubscriptionMixin:
-    @action(detail=True, methods=['post', 'delete'], permission_classes=[IsAuthenticated])
+    @action(detail=True,
+            methods=['post', 'delete'],
+            permission_classes=[IsAuthenticated])
     def subscribe(self, request, id=None):
         user = request.user
         author = get_object_or_404(CustomUser, id=id)
@@ -24,8 +26,10 @@ class SubscriptionMixin:
             )
             serializer.is_valid(raise_exception=True)
             serializer.save()
-            response_serializer = AuthorWithRecipesSerializer(author, context={'request': request})
-            return Response(response_serializer.data, status=status.HTTP_201_CREATED)
+            response_serializer = AuthorWithRecipesSerializer(author,
+                                                              context={'request': request})
+            return Response(response_serializer.data,
+                            status=status.HTTP_201_CREATED)
 
         subscription = Subscription.objects.filter(user=user, author=author).first()
         if not subscription:
@@ -34,9 +38,13 @@ class SubscriptionMixin:
         subscription.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
-    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
+    @action(detail=False,
+            methods=['get'],
+            permission_classes=[IsAuthenticated])
     def subscriptions(self, request):
         queryset = CustomUser.objects.filter(subscribers__user=request.user)
         page = self.paginate_queryset(queryset)
-        serializer = AuthorWithRecipesSerializer(page, many=True, context={'request': request})
+        serializer = AuthorWithRecipesSerializer(page,
+                                                 many=True,
+                                                 context={'request': request})
         return self.get_paginated_response(serializer.data)

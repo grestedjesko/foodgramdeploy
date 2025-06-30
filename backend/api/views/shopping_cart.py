@@ -9,21 +9,25 @@ from recipes.models import IngredientInRecipe
 
 
 class ShoppingCartMixin:
-    @action(detail=True, methods=['post', 'delete'], permission_classes=[permissions.IsAuthenticated])
+    @action(detail=True,
+            methods=['post', 'delete'],
+            permission_classes=[permissions.IsAuthenticated])
     def shopping_cart(self, request, pk=None):
         user = request.user
         recipe = get_object_or_404(Recipe, pk=pk)
 
         if request.method == 'POST':
             if ShoppingCart.objects.filter(user=user, recipe=recipe).exists():
-                return Response({'errors': 'Рецепт уже в корзине.'}, status=status.HTTP_400_BAD_REQUEST)
+                return Response({'errors': 'Рецепт уже в корзине.'},
+                                status=status.HTTP_400_BAD_REQUEST)
             ShoppingCart.objects.create(user=user, recipe=recipe)
             serializer = ShoppingCartSerializer(recipe)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
 
         cart_item = ShoppingCart.objects.filter(user=user, recipe=recipe).first()
         if not cart_item:
-            return Response({'errors': 'Рецепта не было в корзине.'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'errors': 'Рецепта не было в корзине.'},
+                            status=status.HTTP_400_BAD_REQUEST)
         cart_item.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 

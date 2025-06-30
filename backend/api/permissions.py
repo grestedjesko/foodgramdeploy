@@ -1,5 +1,6 @@
 from rest_framework.permissions import BasePermission
 
+
 class IsAuthorOrReadOnly(BasePermission):
     """Разрешает редактирование только автору."""
 

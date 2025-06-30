@@ -1,4 +1,4 @@
-from rest_framework import viewsets, filters
+from rest_framework import viewsets
 from recipes.models import Ingredient
 from rest_framework.permissions import IsAuthenticatedOrReadOnly
 from api.serializers.recipes import (IngredientSerializer,
@@ -50,11 +50,15 @@ class RecipeViewSet(viewsets.ModelViewSet, ShoppingCartMixin, FavoriteMixin):
         partial = kwargs.pop('partial', False)
         instance = self.get_object()
 
-        serializer = RecipeCreateSerializer(instance, data=request.data, partial=partial, context={'request': request})
+        serializer = RecipeCreateSerializer(instance,
+                                            data=request.data,
+                                            partial=partial,
+                                            context={'request': request})
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
 
-        output_serializer = RecipeListSerializer(serializer.instance, context={'request': request})
+        output_serializer = RecipeListSerializer(serializer.instance,
+                                                 context={'request': request})
         return Response(output_serializer.data)
 
     @action(

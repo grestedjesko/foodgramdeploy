@@ -81,18 +81,30 @@ class RecipeCreateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Recipe
-        fields = ['id', 'author', 'name', 'text', 'image', 'cooking_time', 'ingredients']
+        fields = ['id',
+                  'author',
+                  'name',
+                  'text',
+                  'image',
+                  'cooking_time',
+                  'ingredients']
 
     def validate_ingredients(self, value):
         if not value:
-            raise serializers.ValidationError('Нужен хотя бы один ингредиент.')
+            raise serializers.ValidationError(
+                'Нужен хотя бы один ингредиент.'
+            )
 
         ingredient_ids = [item['id'] for item in value]
         if len(set(ingredient_ids)) != len(ingredient_ids):
-            raise serializers.ValidationError('Ингредиенты не должны повторяться.')
+            raise serializers.ValidationError(
+                'Ингредиенты не должны повторяться.'
+            )
 
         existing_ids = set(
-            Ingredient.objects.filter(id__in=ingredient_ids).values_list('id', flat=True)
+            Ingredient.objects
+            .filter(id__in=ingredient_ids)
+            .values_list('id', flat=True)
         )
         missing = set(ingredient_ids) - existing_ids
         if missing:
@@ -103,12 +115,16 @@ class RecipeCreateSerializer(serializers.ModelSerializer):
 
     def validate_image(self, value):
         if not value or (isinstance(value, str) and not value.strip()):
-            raise serializers.ValidationError('Поле image обязательно и не может быть пустым.')
+            raise serializers.ValidationError(
+                'Поле image обязательно и не может быть пустым.'
+            )
         return value
 
     def validate_cooking_time(self, value):
         if value < 1:
-            raise serializers.ValidationError('Время приготовления должно быть не менее 1 минуты.')
+            raise serializers.ValidationError(
+                'Время приготовления должно быть не менее 1 минуты.'
+            )
         return value
 
     def _set_ingredients(self, recipe, ingredients_data):
