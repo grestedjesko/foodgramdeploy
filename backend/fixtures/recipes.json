@@ -1,0 +1,26 @@
+[
+  {
+    "model": "recipes.recipe",
+    "pk": 1,
+    "fields": {
+      "author": 1,
+      "name": "Омлет с сыром",
+      "image": "",
+      "text": "Взбить яйца, добавить молоко и сыр. Жарить на сковороде.",
+      "cooking_time": 10,
+      "created_at": "2025-06-29T12:00:00Z"
+    }
+  },
+  {
+    "model": "recipes.recipe",
+    "pk": 2,
+    "fields": {
+      "author": 1,
+      "name": "Картофель жареный",
+      "image": "",
+      "text": "Очистить картофель, нарезать и жарить на масле.",
+      "cooking_time": 20,
+      "created_at": "2025-06-29T13:00:00Z"
+    }
+  }
+]
