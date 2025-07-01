@@ -62,7 +62,10 @@ class GitHubCallbackView(APIView):
 
         user, _ = CustomUser.objects.get_or_create(
             username=username,
-            defaults={"email": email, "first_name": user_json.get("name", "")},
+            defaults={
+                "email": email,
+                "first_name": user_json.get("name") or "GitHubUser"
+            },
         )
 
         token, _ = Token.objects.get_or_create(user=user)

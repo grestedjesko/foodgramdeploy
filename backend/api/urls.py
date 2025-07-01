@@ -4,6 +4,7 @@ from django.urls import path, include
 from api.views.recipes import IngredientViewSet, RecipeViewSet
 from api.views.users import CustomUserViewSet
 from api.views.github_auth import GitHubLoginView, GitHubCallbackView
+from api.views.password_reset import PasswordResetConfirmAPIView
 
 router = DefaultRouter()
 router.register(r'ingredients', IngredientViewSet, basename='ingredient')
@@ -12,6 +13,9 @@ router.register('users', CustomUserViewSet, basename='users')
 
 urlpatterns = [
     path('', include(router.urls)),
+    path('auth/', include('djoser.urls')),
+    path('auth/password/reset/confirm/', PasswordResetConfirmAPIView.as_view(), name='custom-password-reset-confirm'),
+
     path('auth/', include('djoser.urls.authtoken')),
     path("auth/github/login/", GitHubLoginView.as_view(), name="github-login"),
     path("auth/github/callback/", GitHubCallbackView.as_view(), name="github-callback"),
