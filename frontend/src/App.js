@@ -22,7 +22,9 @@ import {
   NotFound,
   UpdateAvatar,
   ResetPassword,
-  OAuthGithub
+  OAuthGithub,
+  resetPassword,
+  ResetChangePassword
   // Technologies,
 } from "./pages";
 
@@ -330,6 +332,10 @@ function App() {
                 setSubmitError={setRegistrError}
               />
             </Route>
+            <Route exact path="/change-password/:uid/:token">
+              <ResetChangePassword />
+            </Route>
+
             <Route exact path="/">
               <Redirect to="/recipes" />
             </Route>

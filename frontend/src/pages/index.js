@@ -15,6 +15,7 @@ import UpdateAvatar from "./update-avatar";
 import ResetPassword from "./password-reset";
 import NotFound from "./not-found";
 import OAuthGithub from "./oauth-github"
+import ResetChangePassword from "./password-reset-change"
 
 export {
   Main,
@@ -33,5 +34,6 @@ export {
   ChangePassword,
   UpdateAvatar,
   NotFound,
-  OAuthGithub
+  OAuthGithub,
+  ResetChangePassword
 };

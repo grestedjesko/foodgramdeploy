@@ -5,6 +5,7 @@ import {
   Form,
   Button,
   FormTitle,
+  LinkComponent
 } from "../../components";
 import styles from "./styles.module.css";
 import { useFormWithValidation } from "../../utils";
@@ -72,11 +73,12 @@ const SignIn = ({ onSignIn, submitError, setSubmitError }) => {
             submitError={submitError}
             onChange={onChange}
           />
-          {/* <LinkComponent
+          {<LinkComponent
             className={styles.link}
             href="/reset-password"
             title="Забыли пароль?"
-          /> */}
+          />}
+
           <Button modifier="style_dark" type="submit" className={styles.button}>
             Войти
           </Button>
