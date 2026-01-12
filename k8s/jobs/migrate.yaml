@@ -1,0 +1,53 @@
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: django-migrate
+  namespace: foodgram
+  labels:
+    app: backend
+    job: migrate
+spec:
+  template:
+    metadata:
+      labels:
+        app: backend
+        job: migrate
+    spec:
+      restartPolicy: OnFailure
+      
+      initContainers:
+      - name: wait-for-db
+        image: postgres:15-alpine
+        command:
+        - sh
+        - -c
+        - |
+          until pg_isready -h postgres-service -p 5432 -U foodgram_user; do
+            echo "Waiting for database to be ready..."
+            sleep 2
+          done
+          echo "Database is ready!"
+        env:
+        - name: PGPASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secrets
+              key: POSTGRES_PASSWORD
+      
+      containers:
+      - name: django-migrate
+        image: foodgram-backend:latest
+        imagePullPolicy: IfNotPresent
+        command: 
+        - sh
+        - -c
+        - |
+          echo "Running migrations..."
+          python manage.py migrate --noinput
+          echo "Migrations completed successfully!"
+        envFrom:
+        - configMapRef:
+            name: foodgram-config
+        - secretRef:
+            name: foodgram-secrets

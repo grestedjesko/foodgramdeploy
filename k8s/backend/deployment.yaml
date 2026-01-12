@@ -1,0 +1,87 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: foodgram
+  labels:
+    app: backend
+    tier: application
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: backend
+      tier: application
+  template:
+    metadata:
+      labels:
+        app: backend
+        tier: application
+    spec:
+      initContainers:
+      - name: wait-for-db
+        image: postgres:15-alpine
+        command:
+        - sh
+        - -c
+        - |
+          until pg_isready -h postgres-service -p 5432 -U foodgram_user; do
+            echo "Waiting for database..."
+            sleep 2
+          done
+          echo "Database is ready!"
+        env:
+        - name: PGPASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secrets
+              key: POSTGRES_PASSWORD
+      
+      - name: collectstatic
+        image: foodgram-backend:latest
+        imagePullPolicy: IfNotPresent
+        command: 
+        - sh
+        - -c
+        - |
+          echo "Collecting static files..."
+          python manage.py collectstatic --noinput
+          echo "Static files collected successfully!"
+        envFrom:
+        - configMapRef:
+            name: foodgram-config
+        - secretRef:
+            name: foodgram-secrets
+        volumeMounts:
+        - name: static-volume
+          mountPath: /app/static
+        - name: media-volume
+          mountPath: /app/media
+      
+      containers:
+      - name: backend
+        image: foodgram-backend:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8000
+          name: http
+          protocol: TCP
+        envFrom:
+        - configMapRef:
+            name: foodgram-config
+        - secretRef:
+            name: foodgram-secrets
+        volumeMounts:
+        - name: static-volume
+          mountPath: /app/static
+        - name: media-volume
+          mountPath: /app/media
+      
+      volumes:
+      - name: static-volume
+        persistentVolumeClaim:
+          claimName: static-pvc
+      - name: media-volume
+        persistentVolumeClaim:
+          claimName: media-pvc
