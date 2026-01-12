@@ -1,0 +1,41 @@
+{{- if .Values.persistence.static.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "backend.fullname" . }}-static
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "backend.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    {{- range .Values.persistence.static.accessModes }}
+    - {{ . | quote }}
+    {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.persistence.static.size | quote }}
+  {{- if .Values.persistence.static.storageClass }}
+  storageClassName: {{ .Values.persistence.static.storageClass | quote }}
+  {{- end }}
+{{- end }}
+---
+{{- if .Values.persistence.media.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "backend.fullname" . }}-media
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "backend.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    {{- range .Values.persistence.media.accessModes }}
+    - {{ . | quote }}
+    {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.persistence.media.size | quote }}
+  {{- if .Values.persistence.media.storageClass }}
+  storageClassName: {{ .Values.persistence.media.storageClass | quote }}
+  {{- end }}
+{{- end }}

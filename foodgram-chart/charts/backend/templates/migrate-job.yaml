@@ -1,0 +1,59 @@
+{{- if .Values.migrations.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "backend.fullname" . }}-migrate
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "backend.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": {{ .Values.migrations.hookAnnotation }}
+    "helm.sh/hook-weight": {{ .Values.migrations.hookWeight | quote }}
+    "helm.sh/hook-delete-policy": {{ .Values.migrations.hookDeletePolicy }}
+spec:
+  backoffLimit: {{ .Values.migrations.backoffLimit }}
+  template:
+    metadata:
+      labels:
+        {{- include "backend.selectorLabels" . | nindent 8 }}
+    spec:
+      restartPolicy: {{ .Values.migrations.restartPolicy }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      initContainers:
+      - name: wait-for-db
+        image: postgres:15-alpine
+        command:
+        - sh
+        - -c
+        - |
+          until pg_isready -h {{ .Values.database.host }} -p {{ .Values.database.port }} -U {{ .Values.database.username }}; do
+            echo "Waiting for database..."
+            sleep 2
+          done
+        env:
+        - name: PGPASSWORD
+          value: {{ .Values.secrets.postgresPassword | quote }}
+      containers:
+      - name: django-migrate
+        image: {{ include "backend.image" . }}
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        command: 
+        - sh
+        - -c
+        - python manage.py migrate --noinput
+        envFrom:
+        - configMapRef:
+            name: {{ include "backend.fullname" . }}-config
+        env:
+        - name: POSTGRES_PASSWORD
+          value: {{ .Values.secrets.postgresPassword | quote }}
+        - name: SECRET_KEY
+          value: {{ .Values.secrets.djangoSecretKey | quote }}
+        - name: DEBUG
+          value: {{ .Values.secrets.debug | quote }}
+        - name: ALLOWED_HOSTS
+          value: {{ .Values.secrets.allowedHosts | quote }}
+{{- end }}

@@ -1,0 +1,29 @@
+auth:
+  database: foodgram
+  username: foodgram_user
+  password: "change_me"
+
+image:
+  registry: ""
+  repository: postgres
+  tag: "15-alpine"
+  pullPolicy: IfNotPresent
+
+replicaCount: 1
+
+service:
+  type: ClusterIP
+  port: 5432
+  clusterIP: None
+
+persistence:
+  enabled: true
+  storageClass: ""
+  accessModes:
+    - ReadWriteOnce
+  size: 5Gi
+
+resources: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}

@@ -1,0 +1,10 @@
+apiVersion: v2
+name: postgresql
+description: PostgreSQL database for Foodgram
+type: application
+version: 1.0.0
+appVersion: "15"
+keywords:
+  - postgresql
+  - database
+  - sql
