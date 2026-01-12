@@ -1,0 +1,19 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: foodgram-config
+  namespace: foodgram
+data:
+  DB_ENGINE: "django.db.backends.postgresql"
+  DB_HOST: "postgres-service"
+  DB_PORT: "5432"
+  DB_NAME: "foodgram"
+  
+  LANGUAGE_CODE: "ru-ru"
+  TIME_ZONE: "UTC"
+  
+  STATIC_URL: "/backend_static/"
+  MEDIA_URL: "/media/"
+  
+  PAGE_SIZE: "6"
