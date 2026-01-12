@@ -1,0 +1,119 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "backend.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "backend.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "backend.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "backend.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      initContainers:
+      - name: wait-for-db
+        image: postgres:15-alpine
+        command:
+        - sh
+        - -c
+        - |
+          until pg_isready -h {{ .Values.database.host }} -p {{ .Values.database.port }} -U {{ .Values.database.username }}; do
+            echo "Waiting for database..."
+            sleep 2
+          done
+        env:
+        - name: PGPASSWORD
+          value: {{ .Values.secrets.postgresPassword | quote }}
+      {{- if .Values.collectstatic.enabled }}
+      - name: collectstatic
+        image: {{ include "backend.image" . }}
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        command: 
+        - sh
+        - -c
+        - python manage.py collectstatic --noinput
+        envFrom:
+        - configMapRef:
+            name: {{ include "backend.fullname" . }}-config
+        env:
+        - name: POSTGRES_PASSWORD
+          value: {{ .Values.secrets.postgresPassword | quote }}
+        - name: SECRET_KEY
+          value: {{ .Values.secrets.djangoSecretKey | quote }}
+        - name: DEBUG
+          value: {{ .Values.secrets.debug | quote }}
+        - name: ALLOWED_HOSTS
+          value: {{ .Values.secrets.allowedHosts | quote }}
+        volumeMounts:
+        - name: static-volume
+          mountPath: /app/static
+        {{- if .Values.persistence.media.enabled }}
+        - name: media-volume
+          mountPath: /app/media
+        {{- end }}
+      {{- end }}
+      containers:
+      - name: backend
+        image: {{ include "backend.image" . }}
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        ports:
+        - containerPort: {{ .Values.service.targetPort }}
+          name: http
+          protocol: TCP
+        envFrom:
+        - configMapRef:
+            name: {{ include "backend.fullname" . }}-config
+        env:
+        - name: POSTGRES_PASSWORD
+          value: {{ .Values.secrets.postgresPassword | quote }}
+        - name: SECRET_KEY
+          value: {{ .Values.secrets.djangoSecretKey | quote }}
+        - name: DEBUG
+          value: {{ .Values.secrets.debug | quote }}
+        - name: ALLOWED_HOSTS
+          value: {{ .Values.secrets.allowedHosts | quote }}
+        volumeMounts:
+        {{- if .Values.persistence.static.enabled }}
+        - name: static-volume
+          mountPath: /app/static
+        {{- end }}
+        {{- if .Values.persistence.media.enabled }}
+        - name: media-volume
+          mountPath: /app/media
+        {{- end }}
+        {{- with .Values.resources }}
+        resources:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+      volumes:
+      {{- if .Values.persistence.static.enabled }}
+      - name: static-volume
+        persistentVolumeClaim:
+          claimName: {{ include "backend.fullname" . }}-static
+      {{- end }}
+      {{- if .Values.persistence.media.enabled }}
+      - name: media-volume
+        persistentVolumeClaim:
+          claimName: {{ include "backend.fullname" . }}-media
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

@@ -1,0 +1,28 @@
+replicaCount: 1
+
+image:
+  registry: ""
+  repository: foodgram-frontend
+  tag: "latest"
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 80
+
+staticMountPath: /var/html/backend_static
+mediaMountPath: /var/html/backend_media
+
+persistence:
+  static:
+    claimName: ""
+  media:
+    claimName: ""
+
+resources: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}
