@@ -158,17 +158,40 @@ REST_FRAMEWORK = {
 DJOSER = {
     'LOGIN_FIELD': 'email',
     'USER_CREATE_PASSWORD_RETYPE': False,
+    'PASSWORD_RESET_CONFIRM_URL': 'change-password/{uid}/{token}',
+    'SEND_PASSWORD_RESET_EMAIL': True,
+    'SEND_ACTIVATION_EMAIL': False,
+    'SEND_CONFIRMATION_EMAIL': False,
+
+    'PASSWORD_RESET_CONFIRM_RETYPE': True,
+
     'SERIALIZERS': {
         'user_create': 'api.serializers.users.CustomUserCreateSerializer',
         'user': 'api.serializers.users.CustomUserSerializer',
         'current_user': 'api.serializers.users.CustomUserSerializer',
     },
+
     'PERMISSIONS': {
         'user_create': ['rest_framework.permissions.AllowAny'],
         'user': ['rest_framework.permissions.IsAuthenticatedOrReadOnly'],
         'user_list': ['rest_framework.permissions.AllowAny'],
+        'password_reset_confirm': 'djoser.serializers.PasswordResetConfirmRetypeSerializer',  # 👈 ДОБАВЬ ЭТО
+
     },
 }
 
 
+
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+GITHUB_CLIENT_ID = os.getenv("GITHUB_CLIENT_ID", "your-client-id")
+GITHUB_CLIENT_SECRET = os.getenv("GITHUB_CLIENT_SECRET", "your-client-secret")
+GITHUB_REDIRECT_URI = os.getenv("GITHUB_REDIRECT_URI", "http://localhost/api/auth/github/callback")
+
+EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+EMAIL_HOST = 'smtp.mail.ru'
+EMAIL_PORT = 465
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = 'extrafadee@gmail.com'
+EMAIL_HOST_PASSWORD = 'vorontsy-2rink-5oraVa'  # см. ниже!
+DEFAULT_FROM_EMAIL = EMAIL_HOST_USER

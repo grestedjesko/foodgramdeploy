@@ -22,6 +22,9 @@ import {
   NotFound,
   UpdateAvatar,
   ResetPassword,
+  OAuthGithub,
+  resetPassword,
+  ResetChangePassword
   // Technologies,
 } from "./pages";
 
@@ -302,6 +305,10 @@ function App() {
               <ResetPassword onPasswordReset={onPasswordReset} />
             </Route>
 
+            <Route exact path="/oauth/github">
+               <OAuthGithub />
+            </Route>
+
             <Route exact path="/technologies">
               <NotFound />
               {/* <Technologies component={Technologies}/> */}
@@ -325,6 +332,10 @@ function App() {
                 setSubmitError={setRegistrError}
               />
             </Route>
+            <Route exact path="/change-password/:uid/:token">
+              <ResetChangePassword />
+            </Route>
+
             <Route exact path="/">
               <Redirect to="/recipes" />
             </Route>

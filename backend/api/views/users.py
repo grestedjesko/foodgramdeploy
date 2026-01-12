@@ -7,6 +7,15 @@ from users.models.user import CustomUser
 from api.views.subscription import SubscriptionMixin
 from api.serializers.users import CustomUserSerializer
 from api.serializers.users import AvatarSerializer
+from rest_framework.authtoken.models import Token
+from django.conf import settings
+from rest_framework.permissions import AllowAny
+import secrets, urllib.parse, requests
+from django.shortcuts import redirect
+
+GITHUB_AUTH_URL  = "https://github.com/login/oauth/authorize"  # :contentReference[oaicite:0]{index=0}
+GITHUB_TOKEN_URL = "https://github.com/login/oauth/access_token"  # :contentReference[oaicite:1]{index=1}
+GITHUB_USER_URL  = "https://api.github.com/user"  # :contentReference[oaicite:2]{index=2}
 
 
 class CustomUserViewSet(UserViewSet, SubscriptionMixin):

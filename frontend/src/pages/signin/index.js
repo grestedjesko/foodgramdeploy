@@ -5,6 +5,7 @@ import {
   Form,
   Button,
   FormTitle,
+  LinkComponent
 } from "../../components";
 import styles from "./styles.module.css";
 import { useFormWithValidation } from "../../utils";
@@ -22,9 +23,20 @@ const SignIn = ({ onSignIn, submitError, setSubmitError }) => {
     handleChange(e);
   };
 
+  const handleGithubLogin = () => {
+    const apiRoot =
+      process.env.REACT_APP_API_URL || // CRA
+      import.meta.env?.VITE_API_URL || // Vite
+      "";
+    const url = `${apiRoot}/api/auth/github/login/`.replace(/([^:]\/)\/+/g, "$1");
+    window.location.href = url;
+  };
+
+  if (localStorage.getItem("token")) {
+    return <Redirect to="/recipes" />;
+  }
   return (
     <Main withBG asFlex>
-      {authContext && <Redirect to="/recipes" />}
       <Container className={styles.center}>
         <MetaTags>
           <title>Войти на сайт</title>
@@ -61,14 +73,31 @@ const SignIn = ({ onSignIn, submitError, setSubmitError }) => {
             submitError={submitError}
             onChange={onChange}
           />
-          {/* <LinkComponent
+          {<LinkComponent
             className={styles.link}
             href="/reset-password"
             title="Забыли пароль?"
-          /> */}
+          />}
+
           <Button modifier="style_dark" type="submit" className={styles.button}>
             Войти
           </Button>
+
+          <button
+              type="button"
+              onClick={handleGithubLogin}
+              className={styles.githubBtn}
+          >
+          <img
+            src="https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png"
+            alt="GitHub"
+            width="20"
+            height="20"
+          />
+          Войти через GitHub
+          </button>
+
+
         </Form>
       </Container>
     </Main>
