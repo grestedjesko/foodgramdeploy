@@ -1,0 +1,135 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "flower.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "flower.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "flower.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "flower.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      initContainers:
+      - name: wait-for-redis
+        image: redis:7-alpine
+        command:
+        - sh
+        - -c
+        - |
+          until redis-cli -h {{ .Values.redis.host }} -p {{ .Values.redis.port }} -a {{ .Values.redis.password }} ping; do
+            echo "Waiting for Redis..."
+            sleep 2
+          done
+      containers:
+      - name: flower
+        image: {{ include "flower.image" . }}
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        command:
+        - celery
+        - -A
+        - foodgram.celery
+        - flower
+        - --port={{ .Values.flower.port }}
+        - --url_prefix=/flower
+        - --max_tasks={{ .Values.flower.maxTasks }}
+        {{- if .Values.flower.basicAuth.enabled }}
+        - --basic_auth={{ .Values.flower.basicAuth.username }}:{{ .Values.flower.basicAuth.password }}
+        {{- end }}
+        {{- if .Values.flower.persistentMode }}
+        - --persistent=True
+        - --db={{ .Values.flower.dbFile }}
+        {{- end }}
+        ports:
+        - containerPort: {{ .Values.service.targetPort }}
+          name: http
+          protocol: TCP
+        env:
+        - name: POSTGRES_DB
+          value: {{ .Values.database.name | quote }}
+        - name: POSTGRES_USER
+          value: {{ .Values.database.username | quote }}
+        - name: POSTGRES_PASSWORD
+          {{- if .Values.externalSecrets.enabled }}
+          valueFrom:
+            secretKeyRef:
+              name: postgres-credentials
+              key: password
+          {{- else }}
+          value: {{ .Values.secrets.postgresPassword | quote }}
+          {{- end }}
+        - name: POSTGRES_HOST
+          value: {{ .Values.database.host | quote }}
+        - name: POSTGRES_PORT
+          value: {{ .Values.database.port | quote }}
+        - name: SECRET_KEY
+          {{- if .Values.externalSecrets.enabled }}
+          valueFrom:
+            secretKeyRef:
+              name: django-credentials
+              key: secret-key
+          {{- else }}
+          value: {{ .Values.secrets.djangoSecretKey | quote }}
+          {{- end }}
+        - name: DEBUG
+          {{- if .Values.externalSecrets.enabled }}
+          valueFrom:
+            secretKeyRef:
+              name: django-credentials
+              key: debug
+          {{- else }}
+          value: {{ .Values.secrets.debug | quote }}
+          {{- end }}
+        - name: ALLOWED_HOSTS
+          {{- if .Values.externalSecrets.enabled }}
+          valueFrom:
+            secretKeyRef:
+              name: django-credentials
+              key: allowed-hosts
+          {{- else }}
+          value: {{ .Values.secrets.allowedHosts | quote }}
+          {{- end }}
+        - name: DB_ENGINE
+          value: {{ .Values.config.dbEngine | quote }}
+        - name: LANGUAGE_CODE
+          value: {{ .Values.config.languageCode | quote }}
+        - name: TIME_ZONE
+          value: {{ .Values.config.timeZone | quote }}
+        - name: REDIS_HOST
+          value: {{ .Values.redis.host | quote }}
+        - name: REDIS_PORT
+          value: {{ .Values.redis.port | quote }}
+        - name: REDIS_PASSWORD
+          {{- if .Values.externalSecrets.enabled }}
+          valueFrom:
+            secretKeyRef:
+              name: redis-credentials
+              key: password
+          {{- else }}
+          value: {{ .Values.redis.password | quote }}
+          {{- end }}
+        {{- with .Values.resources }}
+        resources:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

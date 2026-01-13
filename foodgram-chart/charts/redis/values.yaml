@@ -1,0 +1,39 @@
+replicaCount: 1
+
+image:
+  registry: ""
+  repository: redis/redis-stack-server
+  tag: "latest"
+  pullPolicy: IfNotPresent
+
+auth:
+  enabled: true
+  password: "change_me"
+
+externalSecrets:
+  enabled: false
+
+service:
+  headless:
+    type: ClusterIP
+    port: 6379
+    clusterIP: None
+  loadbalancer:
+    enabled: true
+    type: LoadBalancer
+    port: 6379
+
+persistence:
+  enabled: true
+  storageClass: ""
+  accessModes:
+    - ReadWriteOnce
+  size: 2Gi
+
+resources: {}
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}

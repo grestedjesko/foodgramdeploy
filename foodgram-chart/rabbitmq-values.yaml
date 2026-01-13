@@ -1,0 +1,19 @@
+auth:
+  username: "foodgram_user"
+  password: "change_me"  # Will be overridden from vault secrets
+  erlangCookie: "change_me"  # Will be overridden from vault secrets
+
+service:
+  type: LoadBalancer
+  ports:
+    amqp: 5672
+    manager: 15672
+
+persistence:
+  enabled: true
+  storageClass: ""
+  size: 2Gi
+
+replicaCount: 1
+
+plugins: "rabbitmq_management"

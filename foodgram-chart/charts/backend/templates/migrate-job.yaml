@@ -35,7 +35,14 @@ spec:
           done
         env:
         - name: PGPASSWORD
+          {{- if .Values.externalSecrets.enabled }}
+          valueFrom:
+            secretKeyRef:
+              name: postgres-credentials
+              key: password
+          {{- else }}
           value: {{ .Values.secrets.postgresPassword | quote }}
+          {{- end }}
       containers:
       - name: django-migrate
         image: {{ include "backend.image" . }}
@@ -49,11 +56,70 @@ spec:
             name: {{ include "backend.fullname" . }}-config
         env:
         - name: POSTGRES_PASSWORD
+          {{- if .Values.externalSecrets.enabled }}
+          valueFrom:
+            secretKeyRef:
+              name: postgres-credentials
+              key: password
+          {{- else }}
           value: {{ .Values.secrets.postgresPassword | quote }}
+          {{- end }}
         - name: SECRET_KEY
+          {{- if .Values.externalSecrets.enabled }}
+          valueFrom:
+            secretKeyRef:
+              name: django-credentials
+              key: secret-key
+          {{- else }}
           value: {{ .Values.secrets.djangoSecretKey | quote }}
+          {{- end }}
         - name: DEBUG
+          {{- if .Values.externalSecrets.enabled }}
+          valueFrom:
+            secretKeyRef:
+              name: django-credentials
+              key: debug
+          {{- else }}
           value: {{ .Values.secrets.debug | quote }}
+          {{- end }}
         - name: ALLOWED_HOSTS
+          {{- if .Values.externalSecrets.enabled }}
+          valueFrom:
+            secretKeyRef:
+              name: django-credentials
+              key: allowed-hosts
+          {{- else }}
           value: {{ .Values.secrets.allowedHosts | quote }}
+          {{- end }}
+        {{- if .Values.redis.enabled }}
+        - name: REDIS_PASSWORD
+          {{- if .Values.externalSecrets.enabled }}
+          valueFrom:
+            secretKeyRef:
+              name: redis-credentials
+              key: password
+          {{- else }}
+          value: {{ .Values.redis.password | quote }}
+          {{- end }}
+        {{- end }}
+        {{- if .Values.rabbitmq.enabled }}
+        - name: RABBITMQ_USERNAME
+          {{- if .Values.externalSecrets.enabled }}
+          valueFrom:
+            secretKeyRef:
+              name: rabbitmq-credentials
+              key: username
+          {{- else }}
+          value: {{ .Values.rabbitmq.username | quote }}
+          {{- end }}
+        - name: RABBITMQ_PASSWORD
+          {{- if .Values.externalSecrets.enabled }}
+          valueFrom:
+            secretKeyRef:
+              name: rabbitmq-credentials
+              key: password
+          {{- else }}
+          value: {{ .Values.rabbitmq.password | quote }}
+          {{- end }}
+        {{- end }}
 {{- end }}

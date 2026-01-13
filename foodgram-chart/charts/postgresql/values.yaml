@@ -3,6 +3,9 @@ auth:
   username: foodgram_user
   password: "change_me"
 
+externalSecrets:
+  enabled: false
+
 image:
   registry: ""
   repository: postgres

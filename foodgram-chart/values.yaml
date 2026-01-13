@@ -3,6 +3,19 @@ fullnameOverride: ""
 
 namespaceCreate: false
 
+# External Secrets Operator configuration
+externalSecrets:
+  enabled: false  # Set to true to use Vault via External Secrets Operator
+  refreshInterval: "1h"
+  vault:
+    server: "http://vault.vault.svc.cluster.local:8200"
+    path: "secret"
+    version: "v2"
+    auth:
+      mountPath: "kubernetes"
+      role: "foodgram"
+      serviceAccount: "default"
+
 ingress:
   enabled: true
   className: "nginx"
@@ -17,6 +30,9 @@ ingress:
         - path: /admin
           pathType: Prefix
           backend: backend
+        - path: /flower
+          pathType: Prefix
+          backend: flower
         - path: /backend_static
           pathType: Prefix
           backend: frontend
@@ -57,6 +73,27 @@ backend:
     port: 5432
     name: "foodgram"
     username: "foodgram_user"
+  redis:
+    enabled: true  # Set to true when Redis is deployed
+    host: "foodgram-redis-headless"
+    port: 6379
+    password: "change_me"  # Will be overridden from vault secrets
+  rabbitmq:
+    enabled: false  # Set to true when RabbitMQ is deployed
+    host: "foodgram-rabbitmq"
+    port: 5672
+    username: "foodgram_user"
+    password: "change_me"  # Will be overridden from vault secrets
+    exchange: "foodgram_tasks"
+    exchangeType: "direct"
+  celery:
+    enabled: false  # Set to true when Celery is used
+    brokerUrl: "redis://foodgram-redis-headless:6379/0"
+    resultBackend: "redis://foodgram-redis-headless:6379/0"
+  api:
+    themealdb:
+      apiKey: "1"
+    resultsDir: "api_results"
   persistence:
     static:
       enabled: true
@@ -79,6 +116,19 @@ backend:
     restartPolicy: "OnFailure"
   collectstatic:
     enabled: true
+  consumer:
+    enabled: true  # Set to true when RabbitMQ is deployed
+    replicaCount: 1
+    queues:
+      - name: themealdb
+        queue: themealdb_tasks
+        resources: {}
+      - name: openfoodfacts
+        queue: openfoodfacts_tasks
+        resources: {}
+    nodeSelector: {}
+    tolerations: []
+    affinity: {}
   resources: {}
   nodeSelector: {}
   tolerations: []
@@ -132,6 +182,202 @@ postgresql:
     accessModes:
       - ReadWriteOnce
     size: 5Gi
+  resources: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+rabbitmq:
+  enabled: false  # Set to true to deploy RabbitMQ
+  
+  # Image configuration
+  image:
+    repository: rabbitmq
+    tag: 3.13-management-alpine
+    pullPolicy: IfNotPresent
+  
+  # Authentication (from Vault)
+  auth:
+    username: "foodgram_user"
+    password: "change_me"  # Will be overridden from vault secrets
+    erlangCookie: "change_me"  # Will be overridden from vault secrets
+  
+  # Service configuration
+  service:
+    type: LoadBalancer
+    amqpPort: 5672
+    managementPort: 15672
+  
+  # Persistence
+  persistence:
+    enabled: true
+    storageClass: ""
+    size: 2Gi
+    accessMode: ReadWriteOnce
+  
+  # Resources
+  resources:
+    requests:
+      memory: 256Mi
+      cpu: 100m
+    limits:
+      memory: 512Mi
+      cpu: 500m
+  
+  # Replica count
+  replicaCount: 1
+
+redis:
+  enabled: true 
+  replicaCount: 1
+  image:
+    registry: ""
+    repository: redis/redis-stack-server
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  auth:
+    enabled: true
+    password: "change_me"  # Will be overridden from vault secrets
+  service:
+    headless:
+      type: ClusterIP
+      port: 6379
+      clusterIP: None
+    loadbalancer:
+      enabled: true
+      type: LoadBalancer
+      port: 6379
+  persistence:
+    enabled: true
+    storageClass: ""
+    accessModes:
+      - ReadWriteOnce
+    size: 2Gi
+  resources: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+redisinsight:
+  enabled: true
+  redisinsight-app:
+    image:
+      repository: redis/redisinsight
+      tag: latest
+      pullPolicy: IfNotPresent
+    service:
+      type: ClusterIP
+      port: 5540
+    persistence:
+      enabled: true
+      storageClass: ""
+      accessModes:
+        - ReadWriteOnce
+      size: 1Gi
+    ingress:
+      enabled: true
+      className: "nginx"
+      annotations:
+        nginx.ingress.kubernetes.io/rewrite-target: /
+      hosts:
+        - host: ""
+          paths:
+            - path: /redisinsight
+              pathType: Prefix
+      tls: []
+    resources: {}
+    nodeSelector: {}
+    tolerations: []
+    affinity: {}
+
+celery:
+  enabled: true 
+  replicaCount: 1
+  image:
+    registry: ""
+    repository: foodgram-backend
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  worker:
+    concurrency: 4
+    logLevel: info
+    queues: "external_api"
+    maxTasksPerChild: 1000
+  celery:
+    brokerUrl: "redis://foodgram-redis-headless:6379/0"
+    resultBackend: "redis://foodgram-redis-headless:6379/0"
+  config:
+    dbEngine: "django.db.backends.postgresql"
+    languageCode: "ru-ru"
+    timeZone: "UTC"
+    staticUrl: "/backend_static/"
+    mediaUrl: "/media/"
+    pageSize: "6"
+  secrets:
+    postgresPassword: "change_me"
+    djangoSecretKey: "change_me"
+    debug: "False"
+    allowedHosts: "*"
+  database:
+    host: "foodgram-postgresql"
+    port: 5432
+    name: "foodgram"
+    username: "foodgram_user"
+  redis:
+    host: "foodgram-redis-headless"
+    port: 6379
+    password: "change_me"
+  api:
+    themealdb:
+      apiKey: "1"
+    resultsDir: "api_results"
+  resources: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+flower:
+  enabled: true  # Set to true to deploy Flower
+  replicaCount: 1
+  image:
+    registry: ""
+    repository: foodgram-backend
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 5555
+    targetPort: 5555
+  celery:
+    brokerUrl: "redis://foodgram-redis-headless:6379/0"
+    resultBackend: "redis://foodgram-redis-headless:6379/0"
+  flower:
+    basicAuth:
+      enabled: false
+      username: "admin"
+      password: "change_me"
+    persistentMode: false
+    dbFile: "/tmp/flower.db"
+    maxTasks: 10000
+    port: 5555
+  config:
+    dbEngine: "django.db.backends.postgresql"
+    languageCode: "ru-ru"
+    timeZone: "UTC"
+  secrets:
+    postgresPassword: "change_me"
+    djangoSecretKey: "change_me"
+    debug: "False"
+    allowedHosts: "*"
+  database:
+    host: "foodgram-postgresql"
+    port: 5432
+    name: "foodgram"
+    username: "foodgram_user"
+  redis:
+    host: "foodgram-redis-headless"
+    port: 6379
+    password: "change_me"
   resources: {}
   nodeSelector: {}
   tolerations: []

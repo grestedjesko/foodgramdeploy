@@ -1,0 +1,11 @@
+apiVersion: v2
+name: redisinsight
+description: Redis Insight for Foodgram
+type: application
+version: 1.0.0
+appVersion: "latest"
+dependencies:
+  - name: redisinsight
+    version: "0.1.2"
+    repository: "https://heywood8.github.io/helm-charts/"
+    alias: redisinsight-app

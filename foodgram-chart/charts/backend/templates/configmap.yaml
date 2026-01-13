@@ -16,3 +16,19 @@ data:
   STATIC_URL: {{ .Values.config.staticUrl | quote }}
   MEDIA_URL: {{ .Values.config.mediaUrl | quote }}
   PAGE_SIZE: {{ .Values.config.pageSize | quote }}
+  {{- if .Values.redis.enabled }}
+  REDIS_HOST: {{ .Values.redis.host | quote }}
+  REDIS_PORT: {{ .Values.redis.port | quote }}
+  {{- end }}
+  {{- if .Values.rabbitmq.enabled }}
+  RABBITMQ_HOST: {{ .Values.rabbitmq.host | quote }}
+  RABBITMQ_PORT: {{ .Values.rabbitmq.port | quote }}
+  RABBITMQ_EXCHANGE: {{ .Values.rabbitmq.exchange | quote }}
+  RABBITMQ_EXCHANGE_TYPE: {{ .Values.rabbitmq.exchangeType | quote }}
+  {{- end }}
+  {{- if .Values.celery.enabled }}
+  CELERY_BROKER_URL: {{ .Values.celery.brokerUrl | quote }}
+  CELERY_RESULT_BACKEND: {{ .Values.celery.resultBackend | quote }}
+  {{- end }}
+  THEMEALDB_API_KEY: {{ .Values.api.themealdb.apiKey | default "1" | quote }}
+  API_RESULTS_DIR: {{ .Values.api.resultsDir | default "api_results" | quote }}

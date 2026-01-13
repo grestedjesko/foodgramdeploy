@@ -1,0 +1,57 @@
+replicaCount: 1
+
+image:
+  registry: ""
+  repository: foodgram-backend
+  tag: "latest"
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+externalSecrets:
+  enabled: false
+
+worker:
+  concurrency: 4
+  logLevel: info
+  queues: "external_api"
+  maxTasksPerChild: 1000
+
+celery:
+  brokerUrl: "redis://foodgram-redis-headless:6379/0"
+  resultBackend: "redis://foodgram-redis-headless:6379/0"
+
+config:
+  dbEngine: "django.db.backends.postgresql"
+  languageCode: "ru-ru"
+  timeZone: "UTC"
+  staticUrl: "/backend_static/"
+  mediaUrl: "/media/"
+  pageSize: "6"
+
+secrets:
+  postgresPassword: "change_me"
+  djangoSecretKey: "change_me"
+  debug: "False"
+  allowedHosts: "*"
+
+database:
+  host: "foodgram-postgresql"
+  port: 5432
+  name: "foodgram"
+  username: "foodgram_user"
+
+redis:
+  host: "foodgram-redis-headless"
+  port: 6379
+  password: "change_me"
+
+api:
+  themealdb:
+    apiKey: "1"
+  resultsDir: "api_results"
+
+resources: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}

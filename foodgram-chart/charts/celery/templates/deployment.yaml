@@ -1,0 +1,151 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "celery.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "celery.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "celery.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "celery.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      initContainers:
+      - name: wait-for-db
+        image: postgres:15-alpine
+        command:
+        - sh
+        - -c
+        - |
+          until pg_isready -h {{ .Values.database.host }} -p {{ .Values.database.port }} -U {{ .Values.database.username }}; do
+            echo "Waiting for database..."
+            sleep 2
+          done
+        env:
+        - name: PGPASSWORD
+          {{- if .Values.externalSecrets.enabled }}
+          valueFrom:
+            secretKeyRef:
+              name: postgres-credentials
+              key: password
+          {{- else }}
+          value: {{ .Values.secrets.postgresPassword | quote }}
+          {{- end }}
+      - name: wait-for-redis
+        image: redis:7-alpine
+        command:
+        - sh
+        - -c
+        - |
+          until redis-cli -h {{ .Values.redis.host }} -p {{ .Values.redis.port }} -a {{ .Values.redis.password }} ping; do
+            echo "Waiting for Redis..."
+            sleep 2
+          done
+      containers:
+      - name: celery-worker
+        image: {{ include "celery.image" . }}
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        command:
+        - celery
+        - -A
+        - foodgram.celery
+        - worker
+        - --loglevel={{ .Values.worker.logLevel }}
+        - --concurrency={{ .Values.worker.concurrency }}
+        - --queues={{ .Values.worker.queues }}
+        - --max-tasks-per-child={{ .Values.worker.maxTasksPerChild }}
+        env:
+        - name: POSTGRES_DB
+          value: {{ .Values.database.name | quote }}
+        - name: POSTGRES_USER
+          value: {{ .Values.database.username | quote }}
+        - name: POSTGRES_PASSWORD
+          {{- if .Values.externalSecrets.enabled }}
+          valueFrom:
+            secretKeyRef:
+              name: postgres-credentials
+              key: password
+          {{- else }}
+          value: {{ .Values.secrets.postgresPassword | quote }}
+          {{- end }}
+        - name: POSTGRES_HOST
+          value: {{ .Values.database.host | quote }}
+        - name: POSTGRES_PORT
+          value: {{ .Values.database.port | quote }}
+        - name: SECRET_KEY
+          {{- if .Values.externalSecrets.enabled }}
+          valueFrom:
+            secretKeyRef:
+              name: django-credentials
+              key: secret-key
+          {{- else }}
+          value: {{ .Values.secrets.djangoSecretKey | quote }}
+          {{- end }}
+        - name: DEBUG
+          {{- if .Values.externalSecrets.enabled }}
+          valueFrom:
+            secretKeyRef:
+              name: django-credentials
+              key: debug
+          {{- else }}
+          value: {{ .Values.secrets.debug | quote }}
+          {{- end }}
+        - name: ALLOWED_HOSTS
+          {{- if .Values.externalSecrets.enabled }}
+          valueFrom:
+            secretKeyRef:
+              name: django-credentials
+              key: allowed-hosts
+          {{- else }}
+          value: {{ .Values.secrets.allowedHosts | quote }}
+          {{- end }}
+        - name: DB_ENGINE
+          value: {{ .Values.config.dbEngine | quote }}
+        - name: LANGUAGE_CODE
+          value: {{ .Values.config.languageCode | quote }}
+        - name: TIME_ZONE
+          value: {{ .Values.config.timeZone | quote }}
+        - name: PAGE_SIZE
+          value: {{ .Values.config.pageSize | quote }}
+        - name: REDIS_HOST
+          value: {{ .Values.redis.host | quote }}
+        - name: REDIS_PORT
+          value: {{ .Values.redis.port | quote }}
+        - name: REDIS_PASSWORD
+          {{- if .Values.externalSecrets.enabled }}
+          valueFrom:
+            secretKeyRef:
+              name: redis-credentials
+              key: password
+          {{- else }}
+          value: {{ .Values.redis.password | quote }}
+          {{- end }}
+        - name: THEMEALDB_API_KEY
+          value: {{ .Values.api.themealdb.apiKey | quote }}
+        - name: API_RESULTS_DIR
+          value: {{ .Values.api.resultsDir | quote }}
+        {{- with .Values.resources }}
+        resources:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

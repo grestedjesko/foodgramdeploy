@@ -1,0 +1,36 @@
+redisinsight-app:
+  image:
+    repository: redis/redisinsight
+    tag: latest
+    pullPolicy: IfNotPresent
+  
+  service:
+    type: ClusterIP
+    port: 5540
+  
+  persistence:
+    enabled: true
+    storageClass: ""
+    accessModes:
+      - ReadWriteOnce
+    size: 1Gi
+  
+  ingress:
+    enabled: true
+    className: "nginx"
+    annotations:
+      nginx.ingress.kubernetes.io/rewrite-target: /
+    hosts:
+      - host: ""
+        paths:
+          - path: /redisinsight
+            pathType: Prefix
+    tls: []
+  
+  resources: {}
+  
+  nodeSelector: {}
+  
+  tolerations: []
+  
+  affinity: {}

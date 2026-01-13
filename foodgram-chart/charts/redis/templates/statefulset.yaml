@@ -1,66 +1,73 @@
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: {{ include "postgresql.fullname" . }}
+  name: {{ include "redis.fullname" . }}
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "postgresql.labels" . | nindent 4 }}
+    {{- include "redis.labels" . | nindent 4 }}
 spec:
-  serviceName: {{ include "postgresql.fullname" . }}
+  serviceName: {{ include "redis.fullname" . }}-headless
   replicas: {{ .Values.replicaCount }}
   selector:
     matchLabels:
-      {{- include "postgresql.selectorLabels" . | nindent 6 }}
+      {{- include "redis.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       labels:
-        {{- include "postgresql.selectorLabels" . | nindent 8 }}
+        {{- include "redis.selectorLabels" . | nindent 8 }}
     spec:
       containers:
-      - name: postgres
-        image: {{ include "postgresql.image" . }}
+      - name: redis
+        image: {{ include "redis.image" . }}
         imagePullPolicy: {{ .Values.image.pullPolicy }}
+        {{- if .Values.auth.enabled }}
+        command:
+        - redis-server
+        args:
+        - --requirepass
+        - $(REDIS_PASSWORD)
+        {{- end }}
         ports:
-        - containerPort: {{ .Values.service.port }}
-          name: postgres
+        - containerPort: {{ .Values.service.headless.port }}
+          name: redis
           protocol: TCP
+        {{- if .Values.auth.enabled }}
         env:
-        - name: POSTGRES_DB
+        - name: REDIS_PASSWORD
           {{- if .Values.externalSecrets.enabled }}
           valueFrom:
             secretKeyRef:
-              name: postgres-credentials
-              key: database
-          {{- else }}
-          value: {{ .Values.auth.database | quote }}
-          {{- end }}
-        - name: POSTGRES_USER
-          {{- if .Values.externalSecrets.enabled }}
-          valueFrom:
-            secretKeyRef:
-              name: postgres-credentials
-              key: username
-          {{- else }}
-          value: {{ .Values.auth.username | quote }}
-          {{- end }}
-        - name: POSTGRES_PASSWORD
-          {{- if .Values.externalSecrets.enabled }}
-          valueFrom:
-            secretKeyRef:
-              name: postgres-credentials
+              name: redis-credentials
               key: password
           {{- else }}
           value: {{ .Values.auth.password | quote }}
           {{- end }}
-        - name: PGDATA
-          value: /var/lib/postgresql/data/pgdata
+        {{- end }}
         volumeMounts:
-        - name: postgres-storage
-          mountPath: /var/lib/postgresql/data
+        - name: redis-data
+          mountPath: /data
         {{- with .Values.resources }}
         resources:
           {{- toYaml . | nindent 10 }}
         {{- end }}
+        livenessProbe:
+          tcpSocket:
+            port: redis
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          exec:
+            command:
+            - sh
+            - -c
+            - |
+              {{- if .Values.auth.enabled }}
+              redis-cli -a "$REDIS_PASSWORD" ping
+              {{- else }}
+              redis-cli ping
+              {{- end }}
+          initialDelaySeconds: 5
+          periodSeconds: 5
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
@@ -76,9 +83,9 @@ spec:
   {{- if .Values.persistence.enabled }}
   volumeClaimTemplates:
   - metadata:
-      name: postgres-storage
+      name: redis-data
       labels:
-        {{- include "postgresql.labels" . | nindent 8 }}
+        {{- include "redis.labels" . | nindent 8 }}
     spec:
       accessModes:
         {{- range .Values.persistence.accessModes }}

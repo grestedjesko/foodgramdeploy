@@ -8,6 +8,9 @@ image:
 
 imagePullSecrets: []
 
+externalSecrets:
+  enabled: false
+
 service:
   type: ClusterIP
   port: 8000
@@ -33,6 +36,31 @@ database:
   name: "foodgram"
   username: "foodgram_user"
 
+redis:
+  enabled: false
+  host: "foodgram-redis-headless"
+  port: 6379
+  password: "change_me"
+
+rabbitmq:
+  enabled: false
+  host: "foodgram-rabbitmq"
+  port: 5672
+  username: "foodgram_user"
+  password: "change_me"
+  exchange: "foodgram_tasks"
+  exchangeType: "direct"
+
+celery:
+  enabled: false
+  brokerUrl: "redis://foodgram-redis-headless:6379/0"
+  resultBackend: "redis://foodgram-redis-headless:6379/0"
+
+api:
+  themealdb:
+    apiKey: "1"
+  resultsDir: "api_results"
+
 persistence:
   static:
     enabled: true
@@ -57,6 +85,20 @@ migrations:
 
 collectstatic:
   enabled: true
+
+consumer:
+  enabled: false  # Set to true when RabbitMQ is deployed
+  replicaCount: 1
+  queues:
+    - name: themealdb
+      queue: themealdb_tasks
+      resources: {}
+    - name: openfoodfacts
+      queue: openfoodfacts_tasks
+      resources: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
 
 resources: {}
 nodeSelector: {}

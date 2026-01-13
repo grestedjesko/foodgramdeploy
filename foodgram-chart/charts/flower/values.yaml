@@ -1,0 +1,58 @@
+replicaCount: 1
+
+image:
+  registry: ""
+  repository: foodgram-backend
+  tag: "latest"
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+externalSecrets:
+  enabled: false
+
+service:
+  type: ClusterIP
+  port: 5555
+  targetPort: 5555
+
+celery:
+  brokerUrl: "redis://foodgram-redis-headless:6379/0"
+  resultBackend: "redis://foodgram-redis-headless:6379/0"
+
+flower:
+  basicAuth:
+    enabled: false
+    username: "admin"
+    password: "change_me"
+  persistentMode: false
+  dbFile: "/tmp/flower.db"
+  maxTasks: 10000
+  port: 5555
+
+config:
+  dbEngine: "django.db.backends.postgresql"
+  languageCode: "ru-ru"
+  timeZone: "UTC"
+
+secrets:
+  postgresPassword: "change_me"
+  djangoSecretKey: "change_me"
+  debug: "False"
+  allowedHosts: "*"
+
+database:
+  host: "foodgram-postgresql"
+  port: 5432
+  name: "foodgram"
+  username: "foodgram_user"
+
+redis:
+  host: "foodgram-redis-headless"
+  port: 6379
+  password: "change_me"
+
+resources: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}

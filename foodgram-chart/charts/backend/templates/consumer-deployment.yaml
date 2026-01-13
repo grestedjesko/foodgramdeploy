@@ -1,0 +1,128 @@
+{{- if and .Values.rabbitmq.enabled .Values.consumer.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "backend.fullname" . }}-consumer
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "backend.labels" . | nindent 4 }}
+    app.kubernetes.io/component: consumer
+spec:
+  replicas: {{ .Values.consumer.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "backend.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: consumer
+  template:
+    metadata:
+      labels:
+        {{- include "backend.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: consumer
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      initContainers:
+      # Wait for PostgreSQL
+      - name: wait-for-db
+        image: postgres:15-alpine
+        command:
+        - sh
+        - -c
+        - |
+          until pg_isready -h {{ .Values.database.host }} -p {{ .Values.database.port }} -U {{ .Values.database.username }}; do
+            echo "Waiting for database..."
+            sleep 2
+          done
+        env:
+        - name: PGPASSWORD
+          value: {{ .Values.secrets.postgresPassword | quote }}
+      # Wait for RabbitMQ
+      - name: wait-for-rabbitmq
+        image: busybox:1.36
+        command:
+        - sh
+        - -c
+        - |
+          echo "Waiting for RabbitMQ..."
+          until nc -z {{ .Values.rabbitmq.host }} {{ .Values.rabbitmq.port }}; do
+            echo "RabbitMQ is not ready yet..."
+            sleep 2
+          done
+          echo "RabbitMQ is ready!"
+      containers:
+      {{- range .Values.consumer.queues }}
+      - name: consumer-{{ .name }}
+        image: {{ include "backend.image" $ }}
+        imagePullPolicy: {{ $.Values.image.pullPolicy }}
+        command:
+        - python
+        - /app/rabbitmq_integration/consumer.py
+        - {{ .queue }}
+        envFrom:
+        - configMapRef:
+            name: {{ include "backend.fullname" $ }}-config
+        env:
+        - name: POSTGRES_PASSWORD
+          value: {{ $.Values.secrets.postgresPassword | quote }}
+        - name: SECRET_KEY
+          value: {{ $.Values.secrets.djangoSecretKey | quote }}
+        - name: DEBUG
+          value: {{ $.Values.secrets.debug | quote }}
+        - name: ALLOWED_HOSTS
+          value: {{ $.Values.secrets.allowedHosts | quote }}
+        {{- if $.Values.redis.enabled }}
+        - name: REDIS_PASSWORD
+          value: {{ $.Values.redis.password | quote }}
+        {{- end }}
+        {{- if $.Values.externalSecrets.enabled }}
+        - name: RABBITMQ_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: rabbitmq-credentials
+              key: username
+        - name: RABBITMQ_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: rabbitmq-credentials
+              key: password
+        {{- else }}
+        - name: RABBITMQ_USERNAME
+          value: {{ $.Values.rabbitmq.username | quote }}
+        - name: RABBITMQ_PASSWORD
+          value: {{ $.Values.rabbitmq.password | quote }}
+        {{- end }}
+        {{- with .resources }}
+        resources:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        volumeMounts:
+        {{- if $.Values.persistence.media.enabled }}
+        - name: media-volume
+          mountPath: /app/media
+        {{- end }}
+        - name: api-results
+          mountPath: /app/{{ $.Values.api.resultsDir }}
+      {{- end }}
+      volumes:
+      {{- if .Values.persistence.media.enabled }}
+      - name: media-volume
+        persistentVolumeClaim:
+          claimName: {{ include "backend.fullname" . }}-media
+      {{- end }}
+      - name: api-results
+        emptyDir: {}
+      {{- with .Values.consumer.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.consumer.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.consumer.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

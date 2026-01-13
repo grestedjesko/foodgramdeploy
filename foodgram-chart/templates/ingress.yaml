@@ -38,7 +38,7 @@ spec:
               service:
                 name: {{ $.Release.Name }}-{{ .backend }}
                 port:
-                  number: {{ if eq .backend "backend" }}{{ $.Values.backend.service.port }}{{ else }}{{ $.Values.frontend.service.port }}{{ end }}
+                  number: {{ if eq .backend "backend" }}{{ $.Values.backend.service.port }}{{ else if eq .backend "flower" }}{{ $.Values.flower.service.port }}{{ else }}{{ $.Values.frontend.service.port }}{{ end }}
           {{- end }}
     {{- end }}
 {{- end }}
