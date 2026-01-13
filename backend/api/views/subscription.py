@@ -10,6 +10,7 @@ from api.serializers.subscription import (
     SubscriptionCreateSerializer,
     AuthorWithRecipesSerializer
 )
+from api.services.cache_manager import cache_queryset, get_cache_manager, CacheTTL
 
 
 class SubscriptionMixin:
@@ -28,6 +29,16 @@ class SubscriptionMixin:
             serializer.save()
             response_serializer = AuthorWithRecipesSerializer(author,
                                                               context={'request': request})
+            
+            try:
+                cache = get_cache_manager()
+                if cache:
+                    cache.delete_pattern(f"subscriptions:*user_id*{user.id}*")
+                    cache.delete_pattern(f"users:list:*")
+                    cache.delete_pattern(f"users:detail:*")
+            except Exception:
+                pass
+            
             return Response(response_serializer.data,
                             status=status.HTTP_201_CREATED)
 
@@ -36,12 +47,24 @@ class SubscriptionMixin:
             return Response({'error': 'Вы не подписаны на этого пользователя.'},
                             status=status.HTTP_400_BAD_REQUEST)
         subscription.delete()
+        
+        try:
+            cache = get_cache_manager()
+            if cache:
+                cache.delete_pattern(f"subscriptions:*user_id*{user.id}*")
+                cache.delete_pattern(f"users:list:*")
+                cache.delete_pattern(f"users:detail:*")
+        except Exception:
+            pass
+        
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(detail=False,
             methods=['get'],
             permission_classes=[IsAuthenticated])
+    @cache_queryset("subscriptions:list", ttl=CacheTTL.FIVE_MINUTES)
     def subscriptions(self, request):
+        """Список подписок пользователя с кэшированием"""
         queryset = CustomUser.objects.filter(subscribers__user=request.user)
         page = self.paginate_queryset(queryset)
         serializer = AuthorWithRecipesSerializer(page,

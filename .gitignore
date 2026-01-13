@@ -52,3 +52,6 @@ env/
 .DS_Store
 .AppleDouble
 .LSOverride
+otdocs/
+build
+node_modules/

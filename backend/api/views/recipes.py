@@ -14,6 +14,7 @@ from rest_framework import status
 from api.pagination import LimitPageNumberPagination
 from rest_framework.decorators import action
 from api.permissions import IsAuthorOrReadOnly
+from api.services.cache_manager import cache_queryset, CacheInvalidationMixin, CacheTTL
 
 
 class IngredientViewSet(viewsets.ReadOnlyModelViewSet):
@@ -22,19 +23,45 @@ class IngredientViewSet(viewsets.ReadOnlyModelViewSet):
     filter_backends = [DjangoFilterBackend]
     filterset_class = IngredientFilter
     pagination_class = None
+    
+    @cache_queryset("ingredients:list", ttl=CacheTTL.DAY)
+    def list(self, request, *args, **kwargs):
+        """Список ингредиентов с кэшированием (редко меняются)"""
+        return super().list(request, *args, **kwargs)
+    
+    @cache_queryset("ingredients:detail", ttl=CacheTTL.DAY)
+    def retrieve(self, request, *args, **kwargs):
+        """Детали ингредиента с кэшированием"""
+        return super().retrieve(request, *args, **kwargs)
 
 
-class RecipeViewSet(viewsets.ModelViewSet, ShoppingCartMixin, FavoriteMixin):
+class RecipeViewSet(CacheInvalidationMixin, viewsets.ModelViewSet, ShoppingCartMixin, FavoriteMixin):
     pagination_class = LimitPageNumberPagination
     queryset = Recipe.objects.all()
     permission_classes = [IsAuthenticatedOrReadOnly & IsAuthorOrReadOnly]
     filter_backends = [DjangoFilterBackend]
     filterset_class = RecipeFilter
+    
+    # Паттерны для инвалидации кэша при изменениях
+    cache_key_patterns = [
+        "recipes:list:*",
+        "recipes:detail:*"
+    ]
 
     def get_serializer_class(self):
         if self.action in ['list', 'retrieve']:
             return RecipeListSerializer
         return RecipeCreateSerializer
+    
+    @cache_queryset("recipes:list", ttl=CacheTTL.FIVE_MINUTES)
+    def list(self, request, *args, **kwargs):
+        """Список рецептов с кэшированием"""
+        return super().list(request, *args, **kwargs)
+    
+    @cache_queryset("recipes:detail", ttl=CacheTTL.TEN_MINUTES)
+    def retrieve(self, request, *args, **kwargs):
+        """Детали рецепта с кэшированием"""
+        return super().retrieve(request, *args, **kwargs)
 
     def perform_create(self, serializer):
         serializer.save(author=self.request.user)
@@ -44,6 +71,9 @@ class RecipeViewSet(viewsets.ModelViewSet, ShoppingCartMixin, FavoriteMixin):
         serializer.is_valid(raise_exception=True)
         recipe = serializer.save(author=request.user)
         output_serializer = RecipeListSerializer(recipe, context={'request': request})
+    
+        self.invalidate_cache()
+        
         return Response(output_serializer.data, status=status.HTTP_201_CREATED)
 
     def update(self, request, *args, **kwargs):

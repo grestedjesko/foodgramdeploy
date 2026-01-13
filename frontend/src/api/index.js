@@ -303,7 +303,6 @@ class Api {
 
   // ingredients
   getIngredients({ name }) {
-    const token = localStorage.getItem("token");
     return fetch(`/api/ingredients/?name=${name}`, {
       method: "GET",
       headers: {
@@ -355,6 +354,64 @@ class Api {
         authorization: `Token ${token}`,
       },
     }).then(this.checkFileDownloadResponse);
+  }
+
+  // External API integration via Celery
+  getRandomMeal() {
+    return fetch(`/api/celery/import-recipe/`, {
+      method: "POST",
+      headers: {
+        ...this._headers,
+      },
+      body: JSON.stringify({ random: true }),
+    }).then(this.checkResponse);
+  }
+
+  searchMeals({ name }) {
+    return fetch(`/api/celery/import-recipe/`, {
+      method: "POST",
+      headers: {
+        ...this._headers,
+      },
+      body: JSON.stringify({ name }),
+    }).then(this.checkResponse);
+  }
+
+  searchProduct({ query }) {
+    return fetch(`/api/celery/search-product/`, {
+      method: "POST",
+      headers: {
+        ...this._headers,
+      },
+      body: JSON.stringify({ query }),
+    }).then(this.checkResponse);
+  }
+
+  getCeleryTaskStatus({ task_id }) {
+    return fetch(`/api/celery/task-status/${task_id}/`, {
+      method: "GET",
+      headers: {
+        ...this._headers,
+      },
+    }).then(this.checkResponse);
+  }
+  
+  getCeleryStatus() {
+    return fetch(`/api/celery/status/`, {
+      method: "GET",
+      headers: {
+        ...this._headers,
+      },
+    }).then(this.checkResponse);
+  }
+
+  getCeleryHealth() {
+    return fetch(`/api/celery/health/`, {
+      method: "GET",
+      headers: {
+        ...this._headers,
+      },
+    }).then(this.checkResponse);
   }
 }
 

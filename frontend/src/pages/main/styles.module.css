@@ -3,10 +3,26 @@
   align-items: center;
   justify-content: space-between;
   width: 100%;
+  gap: 16px;
+}
+
+.error {
+  padding: 16px;
+  background-color: #fee;
+  border: 1px solid #fcc;
+  border-radius: 8px;
+  color: #c33;
+  margin: 16px 0;
+  text-align: center;
 }
 
 @media screen and (max-width: 770px) {
   .title {
     display: block;
+  }
+  
+  .title button {
+    margin-top: 12px;
+    width: 100%;
   }
 }
