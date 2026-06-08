@@ -37,6 +37,9 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Clean stale local tags
+        run: git tag -l | xargs -r git tag -d
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
