@@ -1,3 +1,10 @@
+# [1.1.0](https://github.com/grestedjesko/foodgramdeploy/compare/v1.0.0...v1.1.0) (2026-06-08)
+
+
+### Features
+
+* Задание 9. Werf + Vault ([32ecaaf](https://github.com/grestedjesko/foodgramdeploy/commit/32ecaafa3247601b097d5d0455023e5c78ef35ff))
+
 # 1.0.0 (2026-06-08)
 
 
