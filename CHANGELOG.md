@@ -1,3 +1,10 @@
+## [1.1.2](https://github.com/grestedjesko/foodgramdeploy/compare/v1.1.1...v1.1.2) (2026-06-08)
+
+
+### Bug Fixes
+
+* SKIP_BUILD всегда false для push-событий ([51e208b](https://github.com/grestedjesko/foodgramdeploy/commit/51e208b38be6266e1e73be689ddc85f3f1244d5b))
+
 ## [1.1.1](https://github.com/grestedjesko/foodgramdeploy/compare/v1.1.0...v1.1.1) (2026-06-08)
 
 
