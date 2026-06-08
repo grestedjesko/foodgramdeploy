@@ -1,0 +1,24 @@
+./setup-vault.sh setup 
+
+eval $(minikube docker-env)
+docker build -t foodgram-backend:latest ../backend
+docker build -t foodgram-frontend:latest ../frontend
+ 
+helm upgrade --install foodgram . \
+  --namespace foodgram --create-namespace \
+  --set backend.image.pullPolicy=Never \
+  --set frontend.image.pullPolicy=Never \
+  --set externalSecrets.enabled=true \
+  --wait --timeout 10m
+ 
+kubectl get pods -n foodgram
+
+kubectl exec -it -n foodgram deployment/foodgram-backend -- \
+  python manage.py createsuperuser --username admin --email admin@admin.com
+ 
+minikube service -n ingress-nginx ingress-nginx-controller
+
+
+
+
+kubectl port-forward -n foodgram svc/foodgram-redis-headless 6379:6379

@@ -1,0 +1,59 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "locust.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "locust.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "locust.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "locust.selectorLabels" . | nindent 8 }}
+    spec:
+      containers:
+      - name: locust
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        ports:
+        - containerPort: {{ .Values.service.targetPort }}
+          name: http
+          protocol: TCP
+        command:
+        - locust
+        - --locustfile=/locust/locustfile.py
+        - --host={{ .Values.target.host }}
+        - --web-port={{ .Values.service.targetPort }}
+        {{- if .Values.config.headless }}
+        - --headless
+        - --users={{ .Values.config.users }}
+        - --spawn-rate={{ .Values.config.spawnRate }}
+        - --run-time={{ .Values.config.runTime }}
+        {{- end }}
+        volumeMounts:
+        - name: locustfile
+          mountPath: /locust
+        {{- with .Values.resources }}
+        resources:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+      volumes:
+      - name: locustfile
+        configMap:
+          name: {{ include "locust.fullname" . }}-locustfile
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

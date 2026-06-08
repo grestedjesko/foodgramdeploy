@@ -14,19 +14,46 @@ case "$1" in
         log "Устанавливаю Vault + External Secrets..."
         echo ""
         
+        # Check if foodgram namespace exists with data
+        if kubectl get namespace foodgram &>/dev/null; then
+            warn "Namespace foodgram уже существует!"
+            echo "Для чистой установки нужно удалить старые данные:"
+            echo "  ./setup-vault.sh reset"
+            echo ""
+            echo "Или продолжить без очистки (нажмите Enter):"
+            read -r
+        fi
+        
         # Install Vault
         log "Шаг 1/4: Устанавливаю Vault"
-        helm repo add hashicorp https://helm.releases.hashicorp.com 2>/dev/null || true
-        helm repo add external-secrets https://charts.external-secrets.io 2>/dev/null || true
-        helm repo update >/dev/null 2>&1
+        
+        # Скачиваем chart локально (обход проблем с TLS)
+        if [ ! -d "vault" ]; then
+            log "Скачиваю Vault chart..."
+            curl -kL https://helm.releases.hashicorp.com/vault-0.31.0.tgz -o vault-0.31.0.tgz
+            tar -xzf vault-0.31.0.tgz
+            rm vault-0.31.0.tgz
+        fi
         
         kubectl create namespace vault 2>/dev/null || true
-        helm install vault hashicorp/vault \
+        helm install vault ./vault \
             --namespace vault \
-            --values vault-values.yaml 2>/dev/null || true
+            --values vault-values.yaml
         
-        kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=vault -n vault --timeout=120s
-        ok "Vault установлен"
+        # Ждем, пока pod создастся
+        log "Ожидаю создания pod'а vault-0..."
+        for i in {1..30}; do
+            if kubectl get pod vault-0 -n vault >/dev/null 2>&1; then
+                break
+            fi
+            sleep 2
+        done
+        
+        # Ждем, пока pod запустится (Running), а не станет Ready (это произойдет после init)
+        log "Ожидаю запуска контейнера..."
+        kubectl wait --for=jsonpath='{.status.phase}'=Running pod/vault-0 -n vault --timeout=120s
+        sleep 5
+        ok "Vault установлен и запущен"
         
         # Port-forward
         log "Шаг 2/4: Запускаю port-forward"
@@ -42,22 +69,29 @@ case "$1" in
         
         export VAULT_TOKEN=$(jq -r '.root_token' $KEYS_FILE)
         
-        vault secrets enable -path=secret kv-v2 2>/dev/null || true
-        vault auth enable kubernetes 2>/dev/null || true
+        log "Включаю KV secrets engine..."
+        vault secrets enable -path=secret kv-v2 2>/dev/null || log "KV уже включен"
+        
+        log "Включаю kubernetes auth..."
+        vault auth enable kubernetes 2>/dev/null || log "Kubernetes auth уже включен"
+        
+        log "Настраиваю kubernetes auth..."
         kubectl exec -n vault vault-0 -- sh -c \
-            "vault write auth/kubernetes/config kubernetes_host=\"https://\$KUBERNETES_PORT_443_TCP_ADDR:443\"" 2>/dev/null || true
+            "VAULT_TOKEN=$VAULT_TOKEN vault write auth/kubernetes/config kubernetes_host=\"https://\$KUBERNETES_PORT_443_TCP_ADDR:443\""
         
-        kubectl exec -n vault vault-0 -- sh -c 'cat > /tmp/policy.hcl << "EOF"
-path "secret/data/foodgram/*" { capabilities = ["read", "list"] }
-path "secret/data/rabbitmq/*" { capabilities = ["read", "list"] }
-path "secret/data/redis/*" { capabilities = ["read", "list"] }
+        log "Создаю policy для foodgram..."
+        kubectl exec -n vault vault-0 -- sh -c "cat > /tmp/policy.hcl << 'EOF'
+path \"secret/data/foodgram/*\" { capabilities = [\"read\", \"list\"] }
+path \"secret/data/rabbitmq/*\" { capabilities = [\"read\", \"list\"] }
+path \"secret/data/redis/*\" { capabilities = [\"read\", \"list\"] }
 EOF
-vault policy write foodgram /tmp/policy.hcl' 2>/dev/null || true
+VAULT_TOKEN=$VAULT_TOKEN vault policy write foodgram /tmp/policy.hcl"
         
+        log "Создаю роль foodgram..."
         vault write auth/kubernetes/role/foodgram \
             bound_service_account_names=default \
             bound_service_account_namespaces=foodgram \
-            policies=foodgram ttl=24h 2>/dev/null || true
+            policies=foodgram ttl=24h
         
         # Store secrets
         vault kv put secret/foodgram/postgres \
@@ -73,31 +107,84 @@ vault policy write foodgram /tmp/policy.hcl' 2>/dev/null || true
         
         # Install ESO
         log "Шаг 4/4: Устанавливаю External Secrets Operator"
-        helm install external-secrets external-secrets/external-secrets \
+        
+        # Скачиваем ESO chart локально
+        if [ ! -d "external-secrets" ]; then
+            log "Скачиваю External Secrets chart..."
+            helm repo add external-secrets https://charts.external-secrets.io --force-update
+            helm repo update
+            helm pull external-secrets/external-secrets --version 0.12.1 --untar
+        fi
+        
+        helm install external-secrets ./external-secrets \
             -n external-secrets-system --create-namespace \
-            --set installCRDs=true 2>/dev/null || true
+            --set installCRDs=true
+        
+        log "Ожидаю готовности External Secrets Operator..."
+        kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=external-secrets-webhook \
+            -n external-secrets-system --timeout=120s
+        sleep 5
         
         kill $PF_PID 2>/dev/null || true
         
         echo ""
-        ok "Готово!"
+        ok "Готово! Проверяю конфигурацию..."
+        echo ""
+        
+        # Проверка конфигурации
+        log "Проверка Vault:"
+        kubectl exec -n vault vault-0 -- sh -c "VAULT_TOKEN=$VAULT_TOKEN vault read auth/kubernetes/config" >/dev/null && ok "✓ Kubernetes auth настроен" || warn "✗ Ошибка kubernetes auth"
+        kubectl exec -n vault vault-0 -- sh -c "VAULT_TOKEN=$VAULT_TOKEN vault policy read foodgram" >/dev/null && ok "✓ Policy создана" || warn "✗ Ошибка policy"
+        kubectl exec -n vault vault-0 -- sh -c "VAULT_TOKEN=$VAULT_TOKEN vault read auth/kubernetes/role/foodgram" >/dev/null && ok "✓ Роль создана" || warn "✗ Ошибка роли"
+        kubectl exec -n vault vault-0 -- sh -c "VAULT_TOKEN=$VAULT_TOKEN vault kv get secret/redis/auth" >/dev/null && ok "✓ Секреты сохранены" || warn "✗ Ошибка секретов"
+        
         echo ""
         warn "Следующие шаги:"
         echo "  1. В values.yaml: externalSecrets.enabled: true"
-        echo "  2. Деплой: helm upgrade --install foodgram . -n foodgram"
+        echo "  2. Деплой: helm upgrade --install foodgram . -n foodgram --set externalSecrets.enabled=true"
+        echo ""
+        echo "Пароли (см. в Vault):"
+        echo "  Redis:      redis_pass_789"
+        echo "  RabbitMQ:   rabbitmq_pass_123"  
+        echo "  PostgreSQL: change_me"
         echo ""
         echo "Ключи сохранены в: $KEYS_FILE"
         ;;
     
     reset)
-        warn "Удаляю все..."
+        warn "ВНИМАНИЕ: Это удалит ВСЁ (Vault + Foodgram)!"
+        echo "Будут удалены:"
+        echo "  - Vault + External Secrets"
+        echo "  - Helm релиз foodgram"
+        echo "  - Namespace foodgram (со всеми PVC)"
+        echo ""
+        echo "Продолжить? (yes/no)"
+        read -r confirm
+        if [ "$confirm" != "yes" ]; then
+            echo "Отменено"
+            exit 0
+        fi
+        
+        warn "Удаляю всё..."
+        
+        # Удаляем Foodgram
+        log "Удаляю Foodgram..."
+        helm uninstall foodgram -n foodgram 2>/dev/null || true
+        kubectl delete namespace foodgram --timeout=60s 2>/dev/null || true
+        
+        # Удаляем Vault и External Secrets
+        log "Удаляю Vault..."
         helm uninstall vault -n vault 2>/dev/null || true
         helm uninstall external-secrets -n external-secrets-system 2>/dev/null || true
-        kubectl delete namespace vault 2>/dev/null || true
-        kubectl delete namespace external-secrets-system 2>/dev/null || true
+        kubectl delete namespace vault --timeout=60s 2>/dev/null || true
+        kubectl delete namespace external-secrets-system --timeout=60s 2>/dev/null || true
         kubectl delete pvc -n vault --all 2>/dev/null || true
+        
+        # Очищаем локальные файлы
         rm -f $KEYS_FILE
-        ok "Очищено"
+        rm -rf vault external-secrets *.tgz 2>/dev/null || true
+        
+        ok "Всё очищено! Можно делать чистую установку."
         ;;
     
     *)
@@ -105,13 +192,23 @@ vault policy write foodgram /tmp/policy.hcl' 2>/dev/null || true
 Foodgram Vault Setup
 
 Команды:
-  ./setup-vault.sh setup  - Установить все (Vault + External Secrets)
-  ./setup-vault.sh reset  - Удалить все и начать заново
+  ./setup-vault.sh setup  - Установить Vault + External Secrets
+  ./setup-vault.sh reset  - Удалить ВСЁ (Vault + Foodgram) для чистой установки
 
 Использование:
   1. ./setup-vault.sh setup
   2. В values.yaml: externalSecrets.enabled: true
   3. helm upgrade --install foodgram . -n foodgram
+
+Чистая установка с нуля:
+  1. ./setup-vault.sh reset  # Удалить всё
+  2. ./setup-vault.sh setup  # Установить Vault
+  3. eval \$(minikube docker-env)
+  4. docker build -t foodgram-backend:latest ../backend
+  5. docker build -t foodgram-frontend:latest ../frontend
+  6. helm upgrade --install foodgram . -n foodgram --create-namespace \\
+       --set backend.image.pullPolicy=Never \\
+       --set frontend.image.pullPolicy=Never --wait --timeout 10m
 
 Ключи: vault-keys.json (не коммитить!)
 

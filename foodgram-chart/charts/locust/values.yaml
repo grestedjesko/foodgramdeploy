@@ -1,0 +1,32 @@
+replicaCount: 1
+
+image:
+  repository: locustio/locust
+  tag: "2.32.3"
+  pullPolicy: IfNotPresent
+
+target:
+  host: "http://foodgram-backend:8000"
+
+config:
+  users: 50
+  spawnRate: 5
+  runTime: "5m"
+  headless: false
+
+service:
+  type: ClusterIP
+  port: 8089
+  targetPort: 8089
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

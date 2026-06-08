@@ -1,0 +1,6 @@
+apiVersion: v2
+name: locust
+description: Locust load testing chart for Foodgram
+type: application
+version: 1.0.0
+appVersion: "2.32.3"

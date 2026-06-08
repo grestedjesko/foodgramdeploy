@@ -1,0 +1,154 @@
+name: Release & Deploy
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Semantic Release
+    if: ${{ !contains(github.event.head_commit.message, '[skip ci]') }}
+    runs-on: self-hosted
+    permissions:
+      contents: write
+      packages: write
+      issues: write
+      pull-requests: write
+    outputs:
+      new_release_published: ${{ steps.semantic.outputs.new_release_published }}
+      new_release_version: ${{ steps.semantic.outputs.new_release_version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install semantic-release
+        run: npm ci
+
+      - name: Run semantic-release
+        id: semantic
+        uses: cycjimmy/semantic-release-action@v4
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-and-deploy:
+    name: Build & Deploy
+    needs: release
+    if: needs.release.outputs.new_release_published == 'true'
+    runs-on: self-hosted
+    permissions:
+      contents: read
+      packages: write
+    env:
+      VERSION: ${{ needs.release.outputs.new_release_version }}
+      IMAGE_OWNER: ${{ github.repository_owner }}
+      REGISTRY: ghcr.io
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install kubectl and Helm
+        run: |
+          install_bin() {
+            local url="$1"
+            local dest="$2"
+            curl -fsSL "$url" -o "$dest"
+            chmod +x "$dest"
+            echo "$(dirname "$dest")" >> "$GITHUB_PATH"
+          }
+
+          if ! command -v kubectl >/dev/null 2>&1; then
+            mkdir -p "$HOME/bin"
+            KUBECTL_VERSION="$(curl -fsSL https://dl.k8s.io/release/stable.txt)"
+            install_bin \
+              "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl" \
+              "$HOME/bin/kubectl"
+          fi
+
+          if ! command -v helm >/dev/null 2>&1; then
+            HELM_VERSION="v3.16.3"
+            mkdir -p "$HOME/bin"
+            curl -fsSL "https://get.helm.sh/helm-${HELM_VERSION}-linux-amd64.tar.gz" -o /tmp/helm.tgz
+            tar -xzf /tmp/helm.tgz -C /tmp linux-amd64/helm
+            mv /tmp/linux-amd64/helm "$HOME/bin/helm"
+            echo "$HOME/bin" >> "$GITHUB_PATH"
+          fi
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push backend image
+        run: |
+          IMAGE="${REGISTRY}/${IMAGE_OWNER}/foodgram-backend"
+          docker build -t "${IMAGE}:${VERSION}" -t "${IMAGE}:latest" ./backend
+          docker push "${IMAGE}:${VERSION}"
+          docker push "${IMAGE}:latest"
+
+      - name: Build and push frontend image
+        run: |
+          IMAGE="${REGISTRY}/${IMAGE_OWNER}/foodgram-frontend"
+          docker build -t "${IMAGE}:${VERSION}" -t "${IMAGE}:latest" ./frontend
+          docker push "${IMAGE}:${VERSION}"
+          docker push "${IMAGE}:latest"
+
+      - name: Configure in-cluster kubectl
+        run: |
+          if [ -f /var/run/secrets/kubernetes.io/serviceaccount/token ]; then
+            kubectl config set-cluster in-cluster \
+              --server="https://${KUBERNETES_SERVICE_HOST}:${KUBERNETES_SERVICE_PORT}" \
+              --certificate-authority=/var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+            kubectl config set-credentials runner \
+              --token="$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)"
+            kubectl config set-context in-cluster \
+              --cluster=in-cluster \
+              --user=runner \
+              --namespace=foodgram
+            kubectl config use-context in-cluster
+          fi
+
+      - name: Deploy with Helm
+        run: |
+          kubectl create namespace foodgram --dry-run=client -o yaml | kubectl apply -f -
+          kubectl delete job foodgram-backend-migrate -n foodgram --ignore-not-found=true
+
+          helm upgrade --install foodgram ./foodgram-chart \
+            --namespace foodgram \
+            --set backend.image.registry="${REGISTRY}" \
+            --set backend.image.repository="${IMAGE_OWNER}/foodgram-backend" \
+            --set backend.image.tag="${VERSION}" \
+            --set backend.image.pullPolicy=IfNotPresent \
+            --set backend.imagePullSecrets[0].name=ghcr-credentials \
+            --set frontend.image.registry="${REGISTRY}" \
+            --set frontend.image.repository="${IMAGE_OWNER}/foodgram-frontend" \
+            --set frontend.image.tag="${VERSION}" \
+            --set frontend.image.pullPolicy=IfNotPresent \
+            --set frontend.imagePullSecrets[0].name=ghcr-credentials \
+            --set externalSecrets.enabled=true \
+            --set rabbitmq.enabled=true \
+            --set redis.enabled=true \
+            --set backend.redis.enabled=true \
+            --set backend.rabbitmq.enabled=true \
+            --set backend.consumer.enabled=true \
+            --wait \
+            --timeout 10m
+
+      - name: Show deployment status
+        if: always()
+        run: |
+          kubectl get pods -n foodgram || true
+          kubectl get deploy -n foodgram || true

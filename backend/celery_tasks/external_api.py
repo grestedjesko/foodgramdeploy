@@ -4,7 +4,6 @@ import sys
 from celery import shared_task
 from typing import Dict
 
-# Добавить путь к rabbitmq_integration для импорта api_handlers
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../rabbitmq_integration'))
 
 from api_handlers import TheMealDBHandler, OpenFoodFactsHandler, save_api_response
