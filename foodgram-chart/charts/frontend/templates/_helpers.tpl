@@ -28,8 +28,12 @@ app.kubernetes.io/component: frontend
 {{- end }}
 
 {{- define "frontend.image" -}}
-{{- if .Values.global.image.frontend }}
-{{- .Values.global.image.frontend }}
+{{- $globalImage := "" -}}
+{{- if and .Values.global (hasKey .Values.global "image") -}}
+{{- $globalImage = .Values.global.image.frontend | default "" -}}
+{{- end -}}
+{{- if $globalImage }}
+{{- $globalImage }}
 {{- else -}}
 {{- $registry := .Values.image.registry -}}
 {{- $repository := .Values.image.repository -}}

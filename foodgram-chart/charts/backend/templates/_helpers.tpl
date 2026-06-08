@@ -28,8 +28,12 @@ app.kubernetes.io/component: backend
 {{- end }}
 
 {{- define "backend.image" -}}
-{{- if .Values.global.image.backend }}
-{{- .Values.global.image.backend }}
+{{- $globalImage := "" -}}
+{{- if and .Values.global (hasKey .Values.global "image") -}}
+{{- $globalImage = .Values.global.image.backend | default "" -}}
+{{- end -}}
+{{- if $globalImage }}
+{{- $globalImage }}
 {{- else -}}
 {{- $registry := .Values.image.registry -}}
 {{- $repository := .Values.image.repository -}}
