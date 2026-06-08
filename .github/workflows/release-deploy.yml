@@ -69,7 +69,7 @@ jobs:
       packages: write
     env:
       VERSION: ${{ github.event_name == 'workflow_dispatch' && inputs.version || needs.release.outputs.new_release_version }}
-      SKIP_BUILD: ${{ github.event_name == 'workflow_dispatch' && inputs.skip_build || 'true' }}
+      SKIP_BUILD: ${{ github.event_name == 'workflow_dispatch' && inputs.skip_build == true || false }}
       IMAGE_OWNER: ${{ github.repository_owner }}
       REGISTRY: ghcr.io
       VAULT_UNSEAL_KEY: ${{ secrets.VAULT_UNSEAL_KEY }}
