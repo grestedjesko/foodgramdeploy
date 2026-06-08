@@ -1,0 +1,412 @@
+# ─────────────────────────────────────────────
+# Global values — shared across all subcharts.
+# werf injects .Values.werf.image.<name> at render time;
+# global.image.* mirrors those refs for subchart access.
+# ─────────────────────────────────────────────
+global:
+  # Populated by werf converge / CI --set overrides
+  image:
+    backend: ""   # e.g. ghcr.io/owner/foodgram-backend@sha256:...
+    frontend: ""  # e.g. ghcr.io/owner/foodgram-frontend@sha256:...
+
+  registry: "ghcr.io"
+  imageOwner: ""         # github.repository_owner, set in CI
+
+  imagePullSecrets:
+    - name: ghcr-credentials
+
+  # Vault / External Secrets shared config
+  vault:
+    server: "http://vault.vault.svc.cluster.local:8200"
+    path: "secret"
+    version: "v2"
+    auth:
+      mountPath: "kubernetes"
+      role: "foodgram"
+      serviceAccount: "default"
+
+# ─────────────────────────────────────────────
+# External Secrets Operator
+# ─────────────────────────────────────────────
+externalSecrets:
+  enabled: true
+  refreshInterval: "1h"
+  vault:
+    server: "http://vault.vault.svc.cluster.local:8200"
+    path: "secret"
+    version: "v2"
+    auth:
+      mountPath: "kubernetes"
+      role: "foodgram"
+      serviceAccount: "default"
+
+# ─────────────────────────────────────────────
+# Ingress
+# ─────────────────────────────────────────────
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+  hosts:
+    - host: ""
+      paths:
+        - path: /api
+          pathType: Prefix
+          backend: backend
+        - path: /admin
+          pathType: Prefix
+          backend: backend
+        - path: /flower
+          pathType: Prefix
+          backend: flower
+        - path: /backend_static
+          pathType: Prefix
+          backend: frontend
+        - path: /media
+          pathType: Prefix
+          backend: frontend
+        - path: /
+          pathType: Prefix
+          backend: frontend
+  tls: []
+
+# ─────────────────────────────────────────────
+# Backend subchart overrides
+# image.full is set from global.image.backend by _helpers.tpl
+# ─────────────────────────────────────────────
+backend:
+  enabled: true
+  replicaCount: 1
+  image:
+    registry: ""
+    repository: foodgram-backend
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  imagePullSecrets: []   # populated from global.imagePullSecrets at deploy
+  externalSecrets:
+    enabled: true
+  service:
+    type: ClusterIP
+    port: 8000
+    targetPort: 8000
+  config:
+    dbEngine: "django.db.backends.postgresql"
+    languageCode: "ru-ru"
+    timeZone: "UTC"
+    staticUrl: "/backend_static/"
+    mediaUrl: "/media/"
+    pageSize: "6"
+  secrets:
+    postgresPassword: "change_me"
+    djangoSecretKey: "change_me"
+    debug: "False"
+    allowedHosts: "*"
+  database:
+    host: "foodgram-postgresql"
+    port: 5432
+    name: "foodgram"
+    username: "foodgram_user"
+  redis:
+    enabled: true
+    host: "foodgram-redis-headless"
+    port: 6379
+    password: "change_me"
+  rabbitmq:
+    enabled: true
+    host: "foodgram-rabbitmq"
+    port: 5672
+    username: "foodgram_user"
+    password: "change_me"
+    exchange: "foodgram_tasks"
+    exchangeType: "direct"
+  celery:
+    enabled: false
+    brokerUrl: "redis://foodgram-redis-headless:6379/0"
+    resultBackend: "redis://foodgram-redis-headless:6379/0"
+  api:
+    themealdb:
+      apiKey: "1"
+    resultsDir: "api_results"
+  persistence:
+    static:
+      enabled: true
+      storageClass: ""
+      accessModes: [ReadWriteOnce]
+      size: 1Gi
+    media:
+      enabled: true
+      storageClass: ""
+      accessModes: [ReadWriteOnce]
+      size: 5Gi
+  migrations:
+    enabled: true
+    hookAnnotation: "post-install,post-upgrade"
+    hookWeight: "-5"
+    hookDeletePolicy: "before-hook-creation,hook-succeeded"
+    backoffLimit: 3
+    restartPolicy: "OnFailure"
+  collectstatic:
+    enabled: true
+  consumer:
+    enabled: true
+    replicaCount: 1
+    queues:
+      - name: themealdb
+        queue: themealdb_tasks
+        resources: {}
+      - name: openfoodfacts
+        queue: openfoodfacts_tasks
+        resources: {}
+  resources:
+    requests:
+      cpu: 400m
+      memory: 512Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+# ─────────────────────────────────────────────
+# Frontend subchart overrides
+# ─────────────────────────────────────────────
+frontend:
+  enabled: true
+  replicaCount: 1
+  image:
+    registry: ""
+    repository: foodgram-frontend
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  imagePullSecrets: []
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 80
+  staticMountPath: /var/html/backend_static
+  mediaMountPath: /var/html/backend_media
+  persistence:
+    static:
+      claimName: "foodgram-backend-static"
+    media:
+      claimName: "foodgram-backend-media"
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+
+# ─────────────────────────────────────────────
+# PostgreSQL
+# ─────────────────────────────────────────────
+postgresql:
+  enabled: true
+  auth:
+    database: foodgram
+    username: foodgram_user
+    password: "change_me"
+    existingSecret: ""
+    secretKeys:
+      userPasswordKey: password
+  image:
+    registry: ""
+    repository: postgres
+    tag: "15-alpine"
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 5432
+    clusterIP: None
+  persistence:
+    enabled: true
+    storageClass: ""
+    accessModes: [ReadWriteOnce]
+    size: 5Gi
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+# ─────────────────────────────────────────────
+# RabbitMQ
+# ─────────────────────────────────────────────
+rabbitmq:
+  enabled: true
+  image:
+    repository: rabbitmq
+    tag: 3.13-management-alpine
+    pullPolicy: IfNotPresent
+  auth:
+    username: "foodgram_user"
+    password: "change_me"
+    erlangCookie: "change_me"
+  service:
+    type: LoadBalancer
+    amqpPort: 5672
+    managementPort: 15672
+  persistence:
+    enabled: true
+    storageClass: ""
+    size: 2Gi
+    accessMode: ReadWriteOnce
+  resources:
+    requests:
+      memory: 256Mi
+      cpu: 100m
+    limits:
+      memory: 512Mi
+      cpu: 500m
+  replicaCount: 1
+
+# ─────────────────────────────────────────────
+# Redis
+# ─────────────────────────────────────────────
+redis:
+  enabled: true
+  replicaCount: 1
+  image:
+    registry: ""
+    repository: redis/redis-stack-server
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  auth:
+    enabled: true
+    password: "change_me"
+  externalSecrets:
+    enabled: true
+  service:
+    headless:
+      type: ClusterIP
+      port: 6379
+      clusterIP: None
+    loadbalancer:
+      enabled: false
+      type: LoadBalancer
+      port: 6379
+  persistence:
+    enabled: true
+    storageClass: ""
+    accessModes: [ReadWriteOnce]
+    size: 2Gi
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+# ─────────────────────────────────────────────
+# Celery worker
+# ─────────────────────────────────────────────
+celery:
+  enabled: true
+  replicaCount: 1
+  image:
+    registry: ""
+    repository: foodgram-backend
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  imagePullSecrets: []
+  externalSecrets:
+    enabled: true
+  worker:
+    concurrency: 4
+    logLevel: info
+    queues: "external_api"
+    maxTasksPerChild: 1000
+  celery:
+    brokerUrl: "redis://foodgram-redis-headless:6379/0"
+    resultBackend: "redis://foodgram-redis-headless:6379/0"
+  config:
+    dbEngine: "django.db.backends.postgresql"
+    languageCode: "ru-ru"
+    timeZone: "UTC"
+    staticUrl: "/backend_static/"
+    mediaUrl: "/media/"
+    pageSize: "6"
+  secrets:
+    postgresPassword: "change_me"
+    djangoSecretKey: "change_me"
+    debug: "False"
+    allowedHosts: "*"
+  database:
+    host: "foodgram-postgresql"
+    port: 5432
+    name: "foodgram"
+    username: "foodgram_user"
+  redis:
+    host: "foodgram-redis-headless"
+    port: 6379
+    password: "change_me"
+  api:
+    themealdb:
+      apiKey: "1"
+    resultsDir: "api_results"
+  resources:
+    requests:
+      cpu: 200m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 512Mi
+
+# ─────────────────────────────────────────────
+# Flower (Celery monitoring)
+# ─────────────────────────────────────────────
+flower:
+  enabled: true
+  replicaCount: 1
+  image:
+    registry: ""
+    repository: foodgram-backend
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  imagePullSecrets: []
+  externalSecrets:
+    enabled: true
+  service:
+    type: ClusterIP
+    port: 5555
+    targetPort: 5555
+  celery:
+    brokerUrl: "redis://foodgram-redis-headless:6379/0"
+    resultBackend: "redis://foodgram-redis-headless:6379/0"
+  flower:
+    basicAuth:
+      enabled: false
+      username: "admin"
+      password: "change_me"
+    persistentMode: false
+    dbFile: "/tmp/flower.db"
+    maxTasks: 10000
+    port: 5555
+  config:
+    dbEngine: "django.db.backends.postgresql"
+    languageCode: "ru-ru"
+    timeZone: "UTC"
+  secrets:
+    postgresPassword: "change_me"
+    djangoSecretKey: "change_me"
+    debug: "False"
+    allowedHosts: "*"
+  database:
+    host: "foodgram-postgresql"
+    port: 5432
+    name: "foodgram"
+    username: "foodgram_user"
+  redis:
+    host: "foodgram-redis-headless"
+    port: 6379
+    password: "change_me"
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi

@@ -1,0 +1,129 @@
+name: werf Build & Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment"
+        required: true
+        default: "production"
+        type: choice
+        options: [production, staging]
+
+concurrency:
+  group: werf-deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_OWNER: ${{ github.repository_owner }}
+  NAMESPACE: foodgram
+
+jobs:
+  # ────────────────────────────────────────────────────────────────────────────
+  # Build images and push to GHCR, then deploy via werf converge
+  # ────────────────────────────────────────────────────────────────────────────
+  build-and-deploy:
+    name: werf converge
+    runs-on: self-hosted
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # werf needs full history for content-based tagging
+
+      # ── Install werf ──────────────────────────────────────────────────────
+      - name: Install werf
+        run: |
+          if command -v werf >/dev/null 2>&1; then
+            echo "werf already installed: $(werf version)"
+            exit 0
+          fi
+          curl -sSfL https://raw.githubusercontent.com/werf/werf/main/scripts/install.sh \
+            | bash -s -- --version 2.*
+          echo "$HOME/.werf/bin" >> "$GITHUB_PATH"
+
+      # ── Login to GHCR ─────────────────────────────────────────────────────
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # ── Configure in-cluster kubectl ──────────────────────────────────────
+      - name: Configure kubectl (in-cluster)
+        run: |
+          if [ -f /var/run/secrets/kubernetes.io/serviceaccount/token ]; then
+            kubectl config set-cluster in-cluster \
+              --server="https://${KUBERNETES_SERVICE_HOST}:${KUBERNETES_SERVICE_PORT}" \
+              --certificate-authority=/var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+            kubectl config set-credentials runner \
+              --token="$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)"
+            kubectl config set-context in-cluster \
+              --cluster=in-cluster --user=runner --namespace=${{ env.NAMESPACE }}
+            kubectl config use-context in-cluster
+          fi
+
+      # ── Store GHCR token in Vault + create imagePullSecret ────────────────
+      - name: Vault — store docker token & create imagePullSecret
+        env:
+          VAULT_TOKEN: ${{ secrets.VAULT_TOKEN }}
+          VAULT_ADDR: ${{ secrets.VAULT_ADDR || 'http://vault.vault.svc.cluster.local:8200' }}
+        run: |
+          chmod +x ./vault-integration.sh
+          ./vault-integration.sh all "${{ github.actor }}" "${{ secrets.GITHUB_TOKEN }}"
+
+      # ── Unseal Vault if needed ────────────────────────────────────────────
+      - name: Vault — unseal
+        if: ${{ secrets.VAULT_UNSEAL_KEY != '' }}
+        env:
+          VAULT_UNSEAL_KEY: ${{ secrets.VAULT_UNSEAL_KEY }}
+          VAULT_ADDR: ${{ secrets.VAULT_ADDR || 'http://vault.vault.svc.cluster.local:8200' }}
+        run: |
+          chmod +x ./foodgram-chart/ci-prepare-deploy.sh
+          ./foodgram-chart/ci-prepare-deploy.sh
+
+      # ── werf converge — build + push + deploy in one command ──────────────
+      - name: werf converge
+        env:
+          WERF_REPO: ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/foodgram
+          WERF_ENV: ${{ inputs.environment || 'production' }}
+          WERF_NAMESPACE: ${{ env.NAMESPACE }}
+          WERF_RELEASE: foodgram
+          WERF_SET_BACKEND_PULL_SECRETS: "backend.imagePullSecrets[0].name=ghcr-credentials"
+          WERF_SET_FRONTEND_PULL_SECRETS: "frontend.imagePullSecrets[0].name=ghcr-credentials"
+          WERF_SET_EXTERNAL_SECRETS: "externalSecrets.enabled=true"
+          WERF_SET_RABBITMQ: "rabbitmq.enabled=true"
+          WERF_SET_REDIS: "redis.enabled=true"
+        run: |
+          werf converge \
+            --repo "${WERF_REPO}" \
+            --env "${WERF_ENV}" \
+            --namespace "${WERF_NAMESPACE}" \
+            --release "${WERF_RELEASE}" \
+            --dir . \
+            --helm-chart-dir .helm \
+            --set "${WERF_SET_BACKEND_PULL_SECRETS}" \
+            --set "${WERF_SET_FRONTEND_PULL_SECRETS}" \
+            --set "${WERF_SET_EXTERNAL_SECRETS}" \
+            --set "${WERF_SET_RABBITMQ}" \
+            --set "${WERF_SET_REDIS}" \
+            --timeout 5m
+
+      # ── Verify rollout ────────────────────────────────────────────────────
+      - name: Verify deployment
+        run: |
+          kubectl get pods -n ${{ env.NAMESPACE }}
+          kubectl rollout status deployment/foodgram-frontend -n ${{ env.NAMESPACE }} --timeout=3m
+          kubectl rollout status deployment/foodgram-backend  -n ${{ env.NAMESPACE }} --timeout=5m
+
+      - name: Show pod status
+        if: always()
+        run: kubectl get pods -n ${{ env.NAMESPACE }} -o wide

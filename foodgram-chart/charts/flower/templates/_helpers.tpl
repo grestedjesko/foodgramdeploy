@@ -53,7 +53,9 @@ app.kubernetes.io/component: monitoring
 Create the image string
 */}}
 {{- define "flower.image" -}}
-{{- if .Values.image.registry }}
+{{- if .Values.global.image.backend }}
+{{- .Values.global.image.backend }}
+{{- else if .Values.image.registry }}
 {{- printf "%s/%s:%s" .Values.image.registry .Values.image.repository .Values.image.tag }}
 {{- else }}
 {{- printf "%s:%s" .Values.image.repository .Values.image.tag }}

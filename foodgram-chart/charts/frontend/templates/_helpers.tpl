@@ -28,6 +28,9 @@ app.kubernetes.io/component: frontend
 {{- end }}
 
 {{- define "frontend.image" -}}
+{{- if .Values.global.image.frontend }}
+{{- .Values.global.image.frontend }}
+{{- else -}}
 {{- $registry := .Values.image.registry -}}
 {{- $repository := .Values.image.repository -}}
 {{- $tag := .Values.image.tag | default .Chart.AppVersion -}}
@@ -35,5 +38,6 @@ app.kubernetes.io/component: frontend
 {{- printf "%s/%s:%s" $registry $repository $tag }}
 {{- else }}
 {{- printf "%s:%s" $repository $tag }}
+{{- end }}
 {{- end }}
 {{- end }}
