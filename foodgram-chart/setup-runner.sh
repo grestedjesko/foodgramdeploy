@@ -38,6 +38,29 @@ ensure_minikube() {
   fi
 }
 
+install_cert_manager() {
+  if kubectl get crd certificates.cert-manager.io >/dev/null 2>&1; then
+    log "cert-manager already installed"
+    return
+  fi
+
+  log "Installing cert-manager (required by actions-runner-controller)..."
+  helm repo add jetstack https://charts.jetstack.io 2>/dev/null || true
+  helm repo update jetstack
+
+  helm upgrade --install cert-manager jetstack/cert-manager \
+    --namespace cert-manager \
+    --create-namespace \
+    --version v1.16.2 \
+    --set crds.enabled=true \
+    --wait \
+    --timeout 5m
+
+  log "Waiting for cert-manager webhook..."
+  kubectl wait --for=condition=Available deployment/cert-manager-webhook \
+    -n cert-manager --timeout=3m
+}
+
 install_arc() {
   if [ -z "${GITHUB_TOKEN:-}" ]; then
     echo "GITHUB_TOKEN is required"
@@ -100,6 +123,7 @@ case "${1:-}" in
   setup)
     log "Setting up GitHub Actions self-hosted runner..."
     ensure_minikube
+    install_cert_manager
     install_arc
     apply_runner_manifests
     create_ghcr_secret
@@ -125,7 +149,7 @@ case "${1:-}" in
     kubectl delete -f "${SCRIPT_DIR}/actions-runner/rbac.yaml" --ignore-not-found=true
     helm uninstall arc -n "${NAMESPACE}" 2>/dev/null || true
     kubectl delete namespace "${NAMESPACE}" --ignore-not-found=true
-    ok "Runner removed"
+    ok "Runner removed (cert-manager left installed — shared cluster component)"
     ;;
 
   *)

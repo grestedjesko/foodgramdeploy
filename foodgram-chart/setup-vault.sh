@@ -151,6 +151,33 @@ VAULT_TOKEN=$VAULT_TOKEN vault policy write foodgram /tmp/policy.hcl"
         echo "Ключи сохранены в: $KEYS_FILE"
         ;;
     
+    unseal)
+        if [ ! -f "$KEYS_FILE" ]; then
+            echo "Файл $KEYS_FILE не найден. Нужен после ./setup-vault.sh setup"
+            exit 1
+        fi
+        UNSEAL_KEY=$(jq -r '.unseal_keys_b64[0]' "$KEYS_FILE")
+        log "Распечатываю Vault..."
+        kubectl exec -n vault vault-0 -- vault operator unseal "$UNSEAL_KEY"
+        sleep 3
+        kubectl exec -n vault vault-0 -- vault status
+        echo ""
+        log "Перезапускаю External Secrets Operator..."
+        kubectl rollout restart deployment -n external-secrets-system \
+            -l app.kubernetes.io/name=external-secrets 2>/dev/null || true
+        sleep 10
+        log "Ожидаю синхронизацию External Secrets..."
+        for i in {1..30}; do
+          if kubectl get externalsecret rabbitmq-credentials -n foodgram -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null | grep -q True; then
+            ok "Секреты синхронизированы"
+            break
+          fi
+          sleep 2
+        done
+        kubectl get externalsecret -n foodgram 2>/dev/null || true
+        kubectl get secret -n foodgram | grep -E "rabbitmq|postgres|django|redis" || true
+        ;;
+
     reset)
         warn "ВНИМАНИЕ: Это удалит ВСЁ (Vault + Foodgram)!"
         echo "Будут удалены:"
@@ -193,6 +220,7 @@ Foodgram Vault Setup
 
 Команды:
   ./setup-vault.sh setup  - Установить Vault + External Secrets
+  ./setup-vault.sh unseal - Распечатать Vault после перезапуска minikube
   ./setup-vault.sh reset  - Удалить ВСЁ (Vault + Foodgram) для чистой установки
 
 Использование:

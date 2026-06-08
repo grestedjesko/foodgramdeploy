@@ -13,7 +13,6 @@ spec:
         - self-hosted
         - foodgram
       dockerEnabled: true
-      dockerdWithinRunnerContainer: true
       resources:
         requests:
           cpu: 250m

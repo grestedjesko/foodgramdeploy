@@ -3,6 +3,16 @@ name: Release & Deploy
 on:
   push:
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Image tag to deploy"
+        required: true
+        default: "1.0.0"
+      skip_build:
+        description: "Skip docker build (use existing images in GHCR)"
+        type: boolean
+        default: false
 
 concurrency:
   group: release-${{ github.ref }}
@@ -11,7 +21,7 @@ concurrency:
 jobs:
   release:
     name: Semantic Release
-    if: ${{ !contains(github.event.head_commit.message, '[skip ci]') }}
+    if: github.event_name == 'push' && !contains(github.event.head_commit.message, '[skip ci]')
     runs-on: self-hosted
     permissions:
       contents: write
@@ -45,15 +55,21 @@ jobs:
   build-and-deploy:
     name: Build & Deploy
     needs: release
-    if: needs.release.outputs.new_release_published == 'true'
+    if: |
+      always() && (
+        (github.event_name == 'push' && needs.release.outputs.new_release_published == 'true') ||
+        (github.event_name == 'workflow_dispatch')
+      )
     runs-on: self-hosted
     permissions:
       contents: read
       packages: write
     env:
-      VERSION: ${{ needs.release.outputs.new_release_version }}
+      VERSION: ${{ github.event_name == 'workflow_dispatch' && inputs.version || needs.release.outputs.new_release_version }}
+      SKIP_BUILD: ${{ github.event_name == 'workflow_dispatch' && inputs.skip_build || 'true' }}
       IMAGE_OWNER: ${{ github.repository_owner }}
       REGISTRY: ghcr.io
+      VAULT_UNSEAL_KEY: ${{ secrets.VAULT_UNSEAL_KEY }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -92,19 +108,51 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Clean Docker build cache
+        if: env.SKIP_BUILD != 'true'
+        run: docker builder prune -f 2>/dev/null || true
+
       - name: Build and push backend image
+        if: env.SKIP_BUILD != 'true'
         run: |
           IMAGE="${REGISTRY}/${IMAGE_OWNER}/foodgram-backend"
-          docker build -t "${IMAGE}:${VERSION}" -t "${IMAGE}:latest" ./backend
-          docker push "${IMAGE}:${VERSION}"
-          docker push "${IMAGE}:latest"
+
+          if docker manifest inspect "${IMAGE}:${VERSION}" >/dev/null 2>&1; then
+            echo "Image ${IMAGE}:${VERSION} already in GHCR, skipping build"
+            exit 0
+          fi
+
+          for attempt in 1 2 3; do
+            if docker build -t "${IMAGE}:${VERSION}" -t "${IMAGE}:latest" ./backend; then
+              docker push "${IMAGE}:${VERSION}"
+              docker push "${IMAGE}:latest"
+              exit 0
+            fi
+            echo "Backend build failed, retry ${attempt}/3..."
+            sleep 10
+          done
+          exit 1
 
       - name: Build and push frontend image
+        if: env.SKIP_BUILD != 'true'
         run: |
           IMAGE="${REGISTRY}/${IMAGE_OWNER}/foodgram-frontend"
-          docker build -t "${IMAGE}:${VERSION}" -t "${IMAGE}:latest" ./frontend
-          docker push "${IMAGE}:${VERSION}"
-          docker push "${IMAGE}:latest"
+
+          if docker manifest inspect "${IMAGE}:${VERSION}" >/dev/null 2>&1; then
+            echo "Image ${IMAGE}:${VERSION} already in GHCR, skipping build"
+            exit 0
+          fi
+
+          for attempt in 1 2 3; do
+            if docker build -t "${IMAGE}:${VERSION}" -t "${IMAGE}:latest" ./frontend; then
+              docker push "${IMAGE}:${VERSION}"
+              docker push "${IMAGE}:latest"
+              exit 0
+            fi
+            echo "Frontend build failed, retry ${attempt}/3..."
+            sleep 10
+          done
+          exit 1
 
       - name: Configure in-cluster kubectl
         run: |
@@ -121,6 +169,11 @@ jobs:
             kubectl config use-context in-cluster
           fi
 
+      - name: Prepare cluster for deploy
+        run: |
+          chmod +x ./foodgram-chart/ci-prepare-deploy.sh
+          ./foodgram-chart/ci-prepare-deploy.sh
+
       - name: Deploy with Helm
         run: |
           kubectl create namespace foodgram --dry-run=client -o yaml | kubectl apply -f -
@@ -132,23 +185,31 @@ jobs:
             --set backend.image.repository="${IMAGE_OWNER}/foodgram-backend" \
             --set backend.image.tag="${VERSION}" \
             --set backend.image.pullPolicy=IfNotPresent \
-            --set backend.imagePullSecrets[0].name=ghcr-credentials \
+            --set "backend.imagePullSecrets[0].name=ghcr-credentials" \
             --set frontend.image.registry="${REGISTRY}" \
             --set frontend.image.repository="${IMAGE_OWNER}/foodgram-frontend" \
             --set frontend.image.tag="${VERSION}" \
             --set frontend.image.pullPolicy=IfNotPresent \
-            --set frontend.imagePullSecrets[0].name=ghcr-credentials \
+            --set "frontend.imagePullSecrets[0].name=ghcr-credentials" \
             --set externalSecrets.enabled=true \
             --set rabbitmq.enabled=true \
             --set redis.enabled=true \
             --set backend.redis.enabled=true \
             --set backend.rabbitmq.enabled=true \
             --set backend.consumer.enabled=true \
-            --wait \
-            --timeout 10m
+            --timeout 3m \
+            --no-hooks
+
+          JOB=$(kubectl get jobs -n foodgram -o name 2>/dev/null | grep migrate | head -1 || true)
+          if [ -n "${JOB}" ]; then
+            kubectl wait --for=condition=complete "${JOB}" -n foodgram --timeout=5m || true
+          fi
+
+          kubectl rollout status deployment/foodgram-frontend -n foodgram --timeout=3m
+          kubectl rollout status deployment/foodgram-backend -n foodgram --timeout=5m
+          kubectl rollout status deployment/foodgram-backend-consumer -n foodgram --timeout=5m
 
       - name: Show deployment status
-        if: always()
         run: |
-          kubectl get pods -n foodgram || true
-          kubectl get deploy -n foodgram || true
+          kubectl get pods -n foodgram
+          kubectl get deploy -n foodgram
