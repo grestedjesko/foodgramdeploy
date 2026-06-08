@@ -1,3 +1,10 @@
+## [1.1.1](https://github.com/grestedjesko/foodgramdeploy/compare/v1.1.0...v1.1.1) (2026-06-08)
+
+
+### Bug Fixes
+
+* безопасная проверка global.image в helpers сабчартов ([a1523be](https://github.com/grestedjesko/foodgramdeploy/commit/a1523be774a517ab6d320f8bd8ad14eef302c3a2))
+
 # [1.1.0](https://github.com/grestedjesko/foodgramdeploy/compare/v1.0.0...v1.1.0) (2026-06-08)
 
 
