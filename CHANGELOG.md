@@ -1,3 +1,10 @@
+# [1.2.0](https://github.com/grestedjesko/foodgramdeploy/compare/v1.1.2...v1.2.0) (2026-06-09)
+
+
+### Features
+
+* Observability (task 11) ([46ef8ed](https://github.com/grestedjesko/foodgramdeploy/commit/46ef8eda3f7ee4539600227ed6b64d92c0c6306a))
+
 ## [1.1.2](https://github.com/grestedjesko/foodgramdeploy/compare/v1.1.1...v1.1.2) (2026-06-08)
 
 
