@@ -6,6 +6,9 @@ metadata:
   namespace: foodgram
   annotations:
     nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    nginx.ingress.kubernetes.io/enable-metrics: "true"
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "10254"
 spec:
   ingressClassName: nginx
   rules:

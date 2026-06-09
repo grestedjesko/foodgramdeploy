@@ -1,0 +1,40 @@
+server:
+  service:
+    type: ClusterIP
+  persistentVolume:
+    enabled: false
+
+alertmanager:
+  enabled: false
+
+prometheus-pushgateway:
+  enabled: false
+
+kube-state-metrics:
+  enabled: true
+
+prometheus-node-exporter:
+  enabled: true
+
+serverFiles:
+  prometheus.yml:
+    scrape_configs:
+      - job_name: prometheus
+        static_configs:
+          - targets:
+            - localhost:9090
+
+      - job_name: node-exporter
+        static_configs:
+          - targets:
+            - prometheus-prometheus-node-exporter.monitoring.svc.cluster.local:9100
+
+      - job_name: kube-state-metrics
+        static_configs:
+          - targets:
+            - prometheus-kube-state-metrics.monitoring.svc.cluster.local:8080
+
+      - job_name: nginx-ingress
+        static_configs:
+          - targets:
+            - ingress-nginx-metrics.ingress-nginx.svc.cluster.local:10254

@@ -1,0 +1,38 @@
+repositories:
+  - name: prometheus-community
+    url: https://prometheus-community.github.io/helm-charts
+  - name: grafana
+    url: https://grafana.github.io/helm-charts
+
+releases:
+  - name: prometheus
+    namespace: monitoring
+    createNamespace: true
+    chart: prometheus-community/prometheus
+    version: "25.21.0"
+    values:
+      - prometheus-values.yaml
+
+  - name: loki
+    namespace: monitoring
+    createNamespace: true
+    chart: grafana/loki
+    version: "6.6.2"
+    values:
+      - loki-values.yaml
+
+  - name: promtail
+    namespace: monitoring
+    createNamespace: true
+    chart: grafana/promtail
+    version: "6.16.4"
+    values:
+      - promtail-values.yaml
+
+  - name: grafana
+    namespace: monitoring
+    createNamespace: true
+    chart: grafana/grafana
+    version: "7.3.11"
+    values:
+      - grafana-values.yaml

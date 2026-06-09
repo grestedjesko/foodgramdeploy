@@ -1,0 +1,196 @@
+assertNoLeakedSecrets: false
+
+adminUser: admin
+adminPassword: admin123
+
+service:
+  type: NodePort
+  nodePort: 30300
+
+persistence:
+  enabled: false
+
+dashboardProviders:
+  dashboardproviders.yaml:
+    apiVersion: 1
+    providers:
+      - name: default
+        orgId: 1
+        folder: ''
+        type: file
+        disableDeletion: false
+        editable: true
+        options:
+          path: /var/lib/grafana/dashboards/default
+
+dashboards:
+  default:
+    node-exporter:
+      gnetId: 1860
+      revision: 37
+      datasource: Prometheus
+    kubernetes-pods:
+      gnetId: 6417
+      revision: 1
+      datasource: Prometheus
+    nginx-ingress-custom:
+      json: |
+        {
+          "title": "NGINX Ingress",
+          "uid": "nginx-custom",
+          "panels": [
+            {
+              "id": 1,
+              "title": "Запросы в секунду",
+              "type": "timeseries",
+              "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+              "targets": [{
+                "expr": "rate(nginx_ingress_controller_nginx_process_requests_total[5m])",
+                "legendFormat": "req/s",
+                "datasource": "Prometheus"
+              }],
+              "datasource": "Prometheus"
+            },
+            {
+              "id": 2,
+              "title": "Активные соединения",
+              "type": "timeseries",
+              "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+              "targets": [{
+                "expr": "nginx_ingress_controller_nginx_process_connections{state=\"active\"}",
+                "legendFormat": "active",
+                "datasource": "Prometheus"
+              }],
+              "datasource": "Prometheus"
+            },
+            {
+              "id": 3,
+              "title": "Память (MB)",
+              "type": "timeseries",
+              "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+              "targets": [{
+                "expr": "nginx_ingress_controller_nginx_process_resident_memory_bytes / 1024 / 1024",
+                "legendFormat": "RAM MB",
+                "datasource": "Prometheus"
+              }],
+              "datasource": "Prometheus"
+            },
+            {
+              "id": 4,
+              "title": "Сетевой трафик (KB/s)",
+              "type": "timeseries",
+              "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+              "targets": [
+                {
+                  "expr": "rate(nginx_ingress_controller_nginx_process_write_bytes_total[5m]) / 1024",
+                  "legendFormat": "write KB/s",
+                  "datasource": "Prometheus"
+                },
+                {
+                  "expr": "rate(nginx_ingress_controller_nginx_process_read_bytes_total[5m]) / 1024",
+                  "legendFormat": "read KB/s",
+                  "datasource": "Prometheus"
+                }
+              ],
+              "datasource": "Prometheus"
+            }
+          ],
+          "schemaVersion": 36,
+          "version": 1,
+          "refresh": "10s",
+          "time": {"from": "now-15m", "to": "now"}
+        }
+
+alerting:
+  contactpoints.yaml:
+    secret:
+      apiVersion: 1
+      contactPoints:
+        - orgId: 1
+          name: email-alerts
+          receivers:
+            - uid: email-receiver
+              type: email
+              settings:
+                addresses: xmaxer3@yandex.ru
+
+  policies.yaml:
+    apiVersion: 1
+    policies:
+      - orgId: 1
+        receiver: email-alerts
+
+  rules.yaml:
+    apiVersion: 1
+    groups:
+      - name: nginx-alerts
+        orgId: 1
+        folder: Alerts
+        interval: 1m
+        rules:
+          - uid: nginx-memory-high
+            title: "NGINX Memory > 50MB"
+            condition: C
+            for: 1m
+            noDataState: NoData
+            execErrState: Error
+            data:
+              - refId: A
+                relativeTimeRange:
+                  from: 600
+                  to: 0
+                datasourceUid: PBFA97CFB590B2093
+                model:
+                  expr: nginx_ingress_controller_nginx_process_resident_memory_bytes / 1024 / 1024
+                  instant: true
+                  refId: A
+              - refId: C
+                relativeTimeRange:
+                  from: 600
+                  to: 0
+                datasourceUid: "__expr__"
+                model:
+                  refId: C
+                  type: classic_conditions
+                  conditions:
+                    - type: query
+                      evaluator:
+                        type: gt
+                        params: [50]
+                      operator:
+                        type: and
+                      query:
+                        params: [A]
+                      reducer:
+                        type: last
+
+datasources:
+  datasources.yaml:
+    apiVersion: 1
+    datasources:
+      - name: Prometheus
+        type: prometheus
+        url: http://prometheus-server.monitoring.svc.cluster.local
+        isDefault: true
+        access: proxy
+
+      - name: Loki
+        type: loki
+        url: http://loki-gateway.monitoring.svc.cluster.local
+        access: proxy
+
+grafana.ini:
+  smtp:
+    enabled: true
+    host: smtp.yandex.ru:465
+    user: xmaxer3@yandex.ru
+    password: x
+    from_address: xmaxer3@yandex.ru
+    from_name: Grafana Alerts
+    startTLS_policy: MandatoryStartTLS
+
+  alerting:
+    enabled: false
+
+  unified_alerting:
+    enabled: true
